@@ -6330,13 +6330,13 @@ async function loadJEntries() {
       return;
     }
 
-    // Map rows to entry objects
+    // Map rows to entry objects — no reverse since Sheet is already sorted newest first
     let entries = rows.map(r => ({
       id: r[0]||'', date: r[1]||'', entry_type: r[2]||'class', gi: r[3]||'',
       lesson: r[4]||'', standup: r[5]||'', technique: r[6]||'', rolls: r[7]||'',
       drillwork: r[8]||'', pearls: r[9]||'', fundamentals: r[10]||'',
       notes: r[11]||'', created_at: r[12]||''
-    })).reverse(); // newest first
+    })).filter(e => e.date); // skip empty rows
 
     if (_jFilter !== 'all') entries = entries.filter(e => e.entry_type === _jFilter);
 
