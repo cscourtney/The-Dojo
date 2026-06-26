@@ -6344,7 +6344,8 @@ async function loadJEntries() {
       lesson: r[4]||'', standup: r[5]||'', technique: r[6]||'', rolls: r[7]||'',
       drillwork: r[8]||'', pearls: r[9]||'', fundamentals: r[10]||'',
       notes: r[11]||'', created_at: r[12]||''
-    })).filter(e => e.date); // skip empty rows
+    })).filter(e => e.date) // skip empty rows
+      .sort((a, b) => b.date.localeCompare(a.date)); // newest first always
 
     if (_jFilter !== 'all') entries = entries.filter(e => e.entry_type === _jFilter);
 
