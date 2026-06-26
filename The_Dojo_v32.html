@@ -6175,20 +6175,23 @@ function loadGIS() {
 }
 
 async function getGSToken() {
-  if (_gsToken && Date.now() < _gsTokenExpiry - 60000) return _gsToken;
+  if (_gsToken && Date.now() < _gsTokenExpiry - 120000) return _gsToken;
+  // Force fresh token
+  _gsToken = null;
+  _gsTokenExpiry = 0;
   await loadGIS();
   return new Promise((resolve, reject) => {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: GS_CLIENT_ID,
       scope: GS_SCOPE,
       callback: (resp) => {
-        if (resp.error) { reject(resp.error); return; }
+        if (resp.error) { reject(new Error(resp.error)); return; }
         _gsToken = resp.access_token;
         _gsTokenExpiry = Date.now() + (resp.expires_in * 1000);
         resolve(_gsToken);
       }
     });
-    client.requestAccessToken({ prompt: _gsToken ? '' : 'consent' });
+    client.requestAccessToken({ prompt: '' });
   });
 }
 
