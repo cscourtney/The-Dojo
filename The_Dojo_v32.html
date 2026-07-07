@@ -6500,6 +6500,7 @@ async function saveJEntry() {
   };
 
   const hasContent = entry.lesson || entry.standup || entry.technique || entry.rolls || entry.drillwork || entry.pearls || entry.technique_label;
+  console.log('hasContent check:', hasContent, 'entry type:', _jType, 'technique:', entry.technique?.slice(0,30), 'label:', entry.technique_label);
   if (!hasContent) { jMsg('Add at least one field.', '#e87070'); return; }
 
   // STEP 1: Save to IndexedDB immediately (local backup — always works)
@@ -6528,6 +6529,39 @@ async function saveJEntry() {
       );
       if (!res.ok) throw new Error(await res.text());
     }
+
+    // ── Also write to techniques tab if technique_label present ──
+    if (entry.technique_label && entry.technique_label.trim() && entry.technique && entry.technique.trim()) {
+      const techRow = [entry.technique_label, entry.position||'', entry.map_node||'', entry.technique, entry.date, entry.gi||'', entry.id+'_tech', entry.created_at];
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values/${encodeURIComponent('techniques!A:H')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [techRow] }) }
+      );
+    }
+
+    // ── Also write to techniques tab if takedown_label present ──
+    if (entry.takedown_label && entry.takedown_label.trim() && entry.standup && entry.standup.trim()) {
+      const tdRow = [entry.takedown_label, 'takedowns', 'takedowns', entry.standup, entry.date, entry.gi||'', entry.id+'_td', entry.created_at];
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values/${encodeURIComponent('techniques!A:H')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [tdRow] }) }
+      );
+    }
+
+    // ── Also write pearls to pearls tab ──
+    if (entry.pearls && entry.pearls.trim()) {
+      const pearlLines = entry.pearls.split('\n').filter(l => l.trim());
+      for (const pearl of pearlLines) {
+        const clean = pearl.replace(/^\d+[\.\)]\s*/, '').trim();
+        if (clean) {
+          await fetch(
+            `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values/${encodeURIComponent('pearls!A:E')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+            { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [[entry.date, entry.gi||'', clean, entry.id, entry.created_at]] }) }
+          );
+        }
+      }
+    }
+
     entry._synced = true;
     await saveToIDB(entry);
     jMsg(isEditing ? 'Updated ✓' : 'Saved ✓', 'var(--gold)');
@@ -6817,6 +6851,38 @@ async function saveEditedEntry(entry, originalId) {
     { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [row] }) }
   );
   if (!res.ok) throw new Error(await res.text());
+
+  // Write to techniques tab if technique_label present
+  if (entry.technique_label && entry.technique_label.trim() && entry.technique && entry.technique.trim()) {
+    const techRow = [entry.technique_label, entry.position||'', entry.map_node||'', entry.technique, entry.date, entry.gi||'', entry.id+'_tech', entry.created_at];
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values/${encodeURIComponent('techniques!A:H')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [techRow] }) }
+    );
+  }
+
+  // Write to techniques tab if takedown_label present
+  if (entry.takedown_label && entry.takedown_label.trim() && entry.standup && entry.standup.trim()) {
+    const tdRow = [entry.takedown_label, 'takedowns', 'takedowns', entry.standup, entry.date, entry.gi||'', entry.id+'_td', entry.created_at];
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values/${encodeURIComponent('techniques!A:H')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [tdRow] }) }
+    );
+  }
+
+  // Write pearls to pearls tab
+  if (entry.pearls && entry.pearls.trim()) {
+    const pearlLines = entry.pearls.split('\n').filter(l => l.trim());
+    for (const pearl of pearlLines) {
+      const clean = pearl.replace(/^\d+[\.\)]\s*/, '').trim();
+      if (clean) {
+        await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values/${encodeURIComponent('pearls!A:E')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+          { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [[entry.date, entry.gi||'', clean, entry.id, entry.created_at]] }) }
+        );
+      }
+    }
+  }
 }
 
 function filterJ(type) {
