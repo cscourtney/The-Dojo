@@ -4503,44 +4503,95 @@ CRITICAL RULES:
 
 You are coaching Chuck — a 53 year old ER physician and BJJ blue belt who trains at Karate Kudasai with instructor Dan. He pulls guard, works butterfly and half guard, and is focused on developing an impassable guard and taking backs.`;
 
-function buildTrainingContext() {
-  // Pull the key content from the live DOM for real-time context
-  const journal = window.syncedJournalContent || document.getElementById('journal-sync-content')?.textContent || document.getElementById('p-journal')?.innerText || '';
-  const mistakes = document.getElementById('p-mistakes')?.innerText || '';
-  const priorities = document.getElementById('p-priorities')?.innerText || '';
-  const pearls = document.getElementById('p-pearls')?.innerText || '';
-  const back = document.getElementById('p-back')?.innerText || '';
-  const gpass = document.getElementById('p-gpass')?.innerText || '';
-  const chains = document.getElementById('p-chains')?.innerText || '';
-  const butterfly = document.getElementById('p-butterfly')?.innerText || '';
+// Maps mirror rows to header-keyed objects — this is what makes the
+// whole context system immune to sort order or column reordering in
+// Sheets: we always look up by header NAME, never by position.
+function rowsAsObjects(headers, rows) {
+  return rows.map(r => {
+    const obj = {};
+    headers.forEach((h, i) => { if (h) obj[h] = r[i] || ''; });
+    return obj;
+  });
+}
+
+async function buildTrainingContext() {
+  const [dataM, techM, pearlsM, mistakesM, goalsM, libraryM, chainsM, gameplanM] = await Promise.all([
+    getMirrorTab('data'), getMirrorTab('techniques'), getMirrorTab('pearls'),
+    getMirrorTab('mistakes'), getMirrorTab('goals'), getMirrorTab('library'),
+    getMirrorTab('chains'), getMirrorTab('gameplan')
+  ]);
+
+  const journalRows = rowsAsObjects(dataM.headers, dataM.rows)
+    .filter(r => r.date)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 8);
+
+  const journalText = journalRows.map(r => {
+    const parts = [`${r.date} (${r.entry_type || 'class'}, ${r.gi || 'no-gi'})`];
+    if (r.lesson) parts.push(`Lesson: ${r.lesson}`);
+    if (r.standup) parts.push(`Standup: ${r.standup}`);
+    if (r.technique) parts.push(`Technique: ${r.technique}`);
+    if (r.rolls) parts.push(`Rolls: ${r.rolls}`);
+    if (r.drillwork) parts.push(`Drilling: ${r.drillwork}`);
+    if (r.fundamentals) parts.push(`Fundamentals: ${r.fundamentals}`);
+    if (r.notes) parts.push(`Notes: ${r.notes}`);
+    return parts.join(' | ');
+  }).join('\n\n');
+
+  const fundamentalsText = journalRows
+    .filter(r => r.fundamentals)
+    .map(r => `${r.date}: ${r.fundamentals}`)
+    .join('\n');
+
+  const techRows = rowsAsObjects(techM.headers, techM.rows).slice(-25).reverse();
+  const techniquesText = techRows
+    .map(r => `[${r.position || '?'}] ${r.technique_label || ''}: ${r.description || ''}`)
+    .join('\n');
+
+  const pearlRows = rowsAsObjects(pearlsM.headers, pearlsM.rows).slice(-20).reverse();
+  const pearlsText = pearlRows.map(r => `${r.date || ''}: ${r.pearl || ''}`).join('\n');
+
+  const mistakeRows = rowsAsObjects(mistakesM.headers, mistakesM.rows);
+  const mistakesText = mistakeRows
+    .map(r => `${r.mistake || ''}${r.position ? ' [' + r.position + ']' : ''}${r.fix ? ' — Fix: ' + r.fix : ''}`)
+    .join('\n');
+
+  const goalRows = rowsAsObjects(goalsM.headers, goalsM.rows).filter(r => (r.status || 'active') !== 'done');
+  const goalsText = goalRows.map(r => `[${r.priority || ''}] ${r.goal || ''}${r.target_date ? ' (target: ' + r.target_date + ')' : ''}`).join('\n');
+
+  const chainRows = rowsAsObjects(chainsM.headers, chainsM.rows);
+  const chainsText = chainRows.map(r => `${r.chain_label || ''} [${r.position || ''}]: ${r.description || ''}`).join('\n');
+
+  const libRows = rowsAsObjects(libraryM.headers, libraryM.rows).slice(-10).reverse();
+  const libraryText = libRows.map(r => `${r.title || ''} (${r.type || ''})`).join('\n');
 
   return `
 === STUDENT PROFILE ===
 Belt: Blue Belt | Age: 53 | Training: Gi + No-Gi | Year: 2026
 
-=== RECENT JOURNAL ENTRIES (last 5) ===
-${journal.slice(0, 2000)}
+=== RECENT JOURNAL ENTRIES (most recent first) ===
+${journalText || '(no journal entries yet)'}
 
-=== CURRENT MISTAKE AUDIT ===
-${mistakes.slice(0, 800)}
+=== FUNDAMENTALS NOTED IN RECENT ENTRIES ===
+${fundamentalsText || '(none noted recently)'}
 
-=== CURRENT PRIORITIES ===
-${priorities.slice(0, 600)}
+=== TECHNIQUE LIBRARY (recent additions) ===
+${techniquesText || '(none logged yet)'}
 
-=== PEARLS ===
-${pearls.slice(0, 800)}
+=== PEARLS (recent) ===
+${pearlsText || '(none logged yet)'}
 
-=== BACK CONTROL NOTES ===
-${back.slice(0, 600)}
+=== ACTIVE MISTAKE AUDIT ===
+${mistakesText || '(none logged)'}
 
-=== GUARD PASSING NOTES ===
-${gpass.slice(0, 600)}
+=== ACTIVE GOALS ===
+${goalsText || '(none set)'}
 
 === CHAINS & SEQUENCES ===
-${chains.slice(0, 600)}
+${chainsText || '(none logged)'}
 
-=== BUTTERFLY GUARD NOTES ===
-${butterfly.slice(0, 400)}
+=== RESOURCE LIBRARY (recent) ===
+${libraryText || '(none added)'}
 `.trim();
 }
 
@@ -4591,7 +4642,8 @@ async function sendToSensei(userMsg) {
   setSenseiText('...', true);
   document.getElementById('coach-send-btn').disabled = true;
 
-  const trainingContext = buildTrainingContext();
+  if (!_mirrorLastFullSync) { await refreshAllMirrors(); }
+  const trainingContext = await buildTrainingContext();
   const systemPrompt = `${SENSEI_PERSONALITY}\n\n${getModeInstruction()}\n\n=== STUDENT'S TRAINING DATA ===\n${trainingContext}`;
 
   // Build message array for API
@@ -5080,6 +5132,7 @@ async function saveResourceToSheet(r) {
       { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [row] }) }
     );
     if (!res.ok) console.warn('Library sheet backup failed:', await res.text());
+    else refreshMirrorTab('library');
   } catch(e) { console.warn('Library sheet backup failed:', e.message); }
 }
 
@@ -6222,18 +6275,97 @@ let _idb = null;
 function openIDB() {
   return new Promise((resolve, reject) => {
     if (_idb) { resolve(_idb); return; }
-    const req = indexedDB.open('DojoJournalBackup', 1);
+    const req = indexedDB.open('DojoJournalBackup', 2);
     req.onupgradeneeded = e => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains('entries')) {
         const store = db.createObjectStore('entries', { keyPath: 'id' });
         store.createIndex('date', 'date', { unique: false });
       }
+      if (!db.objectStoreNames.contains('mirror')) {
+        db.createObjectStore('mirror', { keyPath: 'tab' });
+      }
     };
     req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
     req.onerror = e => reject(e.target.error);
   });
 }
+
+// ══════════════════════════════════════════════════════
+// SHEETS MIRROR — full local copy of every tab, so AI Sensei
+// (and anything else) reads real structured data instead of
+// scraping whatever text happens to be on screen.
+//
+// KEY RULE: every refresh REPLACES the whole tab snapshot.
+// We never patch by row index, so re-sorting a tab directly
+// in Google Sheets can never desync or corrupt the mirror —
+// the next refresh just captures the new state as-is.
+// ══════════════════════════════════════════════════════
+const MIRROR_TABS = ['data','techniques','pearls','mistakes','goals','library','chains','gameplan','privates','readable'];
+let _mirrorLastFullSync = null;
+let _mirrorRefreshing = false;
+
+async function saveMirrorTab(tab, headers, rows) {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction('mirror', 'readwrite');
+    tx.objectStore('mirror').put({ tab, headers, rows, syncedAt: new Date().toISOString() });
+    return new Promise((resolve) => { tx.oncomplete = () => resolve(true); tx.onerror = () => resolve(false); });
+  } catch(e) { console.warn('saveMirrorTab failed:', tab, e.message); return false; }
+}
+
+async function getMirrorTab(tab) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction('mirror', 'readonly');
+      const req = tx.objectStore('mirror').get(tab);
+      req.onsuccess = () => resolve(req.result || { tab, headers: [], rows: [], syncedAt: null });
+      req.onerror = () => resolve({ tab, headers: [], rows: [], syncedAt: null });
+    });
+  } catch(e) { return { tab, headers: [], rows: [], syncedAt: null }; }
+}
+
+// Pulls the ENTIRE tab (not a fixed A:X range) so new columns
+// added directly in Sheets are captured automatically too.
+async function refreshMirrorTab(tab) {
+  try {
+    await getGSToken();
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values/${encodeURIComponent(tab)}`,
+      { headers: { 'Authorization': 'Bearer ' + _gsToken } }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    const values = data.values || [];
+    const headers = values[0] || [];
+    const rows = values.slice(1);
+    await saveMirrorTab(tab, headers, rows);
+    return { headers, rows };
+  } catch(e) {
+    console.warn(`Mirror refresh failed for '${tab}':`, e.message);
+    return null;
+  }
+}
+
+async function refreshAllMirrors() {
+  if (_mirrorRefreshing) return;
+  _mirrorRefreshing = true;
+  try {
+    for (const tab of MIRROR_TABS) {
+      await refreshMirrorTab(tab);
+    }
+    _mirrorLastFullSync = new Date().toISOString();
+    console.log('Mirror: full refresh complete at', _mirrorLastFullSync);
+  } finally {
+    _mirrorRefreshing = false;
+  }
+}
+
+// Background refresh so long sessions stay current even without
+// navigating anywhere — catches edits made directly in Sheets.
+setInterval(() => { if (navigator.onLine) refreshAllMirrors(); }, 5 * 60 * 1000);
+window.addEventListener('online', () => { refreshAllMirrors(); });
 
 async function saveToIDB(entry) {
   try {
@@ -6372,6 +6504,9 @@ async function saveJEntry() {
 
     entry._synced = true;
     await saveToIDB(entry);
+    refreshMirrorTab('data');
+    if (entry.technique_label || entry.takedown_label) refreshMirrorTab('techniques');
+    if (entry.pearls && entry.pearls.trim()) refreshMirrorTab('pearls');
     jMsg(isEditing ? 'Updated ✓' : 'Saved ✓', 'var(--gold)');
     clearJForm();
     loadJEntries();
@@ -6443,6 +6578,9 @@ async function syncPendingEntries() {
     }
     if (synced > 0) {
       console.log(`Synced ${synced} pending entries to Sheets`);
+      refreshMirrorTab('data');
+      refreshMirrorTab('techniques');
+      refreshMirrorTab('pearls');
       loadJEntries();
     }
   } catch(e) { console.log('Offline sync skipped (no auth):', e.message); }
@@ -7158,6 +7296,7 @@ async function saveMistake() {
     );
     if (!res.ok) throw new Error(await res.text());
     if(msg){msg.textContent='Logged ✓';msg.style.color='#7ed87f';}
+    refreshMirrorTab('mistakes');
     ['m-mistake','m-position','m-fix','m-notes'].forEach(id => { const el=document.getElementById(id);if(el)el.value=''; });
     setTimeout(()=>{if(msg)msg.textContent='';},3000);
     loadMistakes();
@@ -7204,6 +7343,7 @@ async function saveGoal() {
     );
     if (!res.ok) throw new Error(await res.text());
     if(msg){msg.textContent='Added ✓';msg.style.color='var(--gold)';}
+    refreshMirrorTab('goals');
     ['g-goal','g-notes'].forEach(id => { const el=document.getElementById(id);if(el)el.value=''; });
     setTimeout(()=>{if(msg)msg.textContent='';},3000);
     loadGoals();
