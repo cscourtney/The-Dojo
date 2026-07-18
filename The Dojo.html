@@ -9879,7 +9879,24 @@ function gpmInit() {
     .then(() => { if (gpmLoaded) renderNodes(); })
     .catch(e => console.warn('Game plan map: background Sheets load failed, showing defaults:', e.message));
 }
-gpmInit();
+// Only initialize the Game Plan Map (and its background Sheets fetch)
+// when the user actually navigates to that page — never automatically
+// on app load, which was silently triggering a Google sign-in prompt
+// on every single page open regardless of what the user was doing.
+let _gpmInitDone = false;
+const _origShowForGPM = window.show;
+window.show = function(id) {
+  _origShowForGPM(id);
+  if (id === 'p-gameplan' && !_gpmInitDone) {
+    _gpmInitDone = true;
+    gpmInit();
+  }
+};
+// Render the default map immediately so #p-gameplan isn't empty on first
+// paint even before it's opened, but with zero network/auth calls.
+NODES = JSON.parse(JSON.stringify(DEFAULT_NODES));
+ARROWS = JSON.parse(JSON.stringify(DEFAULT_ARROWS));
+renderNodes();
 window.addEventListener('resize', drawArrows);
 
 </script>
