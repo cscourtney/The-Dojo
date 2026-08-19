@@ -4665,7 +4665,7 @@ async function sendToSensei(userMsg) {
     console.log('Calling proxy with', messages.length, 'messages');
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': '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', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': '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', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1000,
