@@ -639,6 +639,53 @@ ul.cl li::before {
 }
 .coach-send:hover { background:rgba(212,168,67,0.15); }
 
+/* Consolidated chat-style input bar — mic, text, send together, no scrolling required */
+.dojo-chat-bar {
+  display:flex; align-items:center; gap:8px;
+  padding:8px 24px;
+}
+.dojo-mic-btn {
+  flex-shrink:0;
+  width:44px; height:44px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(45,15,15,0.6);
+  border:1px solid rgba(138,48,48,0.4);
+  font-size:20px; padding:0;
+  cursor:pointer; transition:all .2s;
+}
+.dojo-mic-btn.listening {
+  background:rgba(20,50,20,0.6);
+  border-color:var(--green);
+  animation:pulse .7s infinite;
+}
+.dojo-chat-input {
+  flex:1;
+  background:var(--surface);
+  border:1px solid var(--border); border-radius:20px;
+  padding:10px 16px; font-size:14px; color:var(--chalk);
+  font-family:'DM Sans',sans-serif; resize:none;
+  min-height:44px; max-height:120px;
+}
+.dojo-chat-input:focus { outline:none; border-color:var(--gold-dim); }
+.dojo-send-btn {
+  flex-shrink:0;
+  width:44px; height:44px; border-radius:50%;
+  background:var(--gold-faint);
+  border:1px solid var(--gold-line);
+  color:var(--gold); font-size:18px; padding:0;
+  cursor:pointer; transition:all .15s;
+  display:flex; align-items:center; justify-content:center;
+}
+.dojo-send-btn:hover { background:rgba(212,168,67,0.15); }
+.dojo-chat-subrow {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 24px 10px; gap:10px;
+}
+@media (max-width:600px) {
+  .dojo-chat-bar { padding:8px 16px; }
+  .dojo-chat-subrow { padding:0 16px 10px; }
+}
+
 .voice-status {
   font-size:11px; color:var(--chalk-faint);
   padding:0 24px 8px; font-style:italic;
@@ -3809,20 +3856,28 @@ body {
   white-space:pre-wrap;
 "></div>
 
-    <!-- VOICE CONTROLS -->
-    <div class="voice-controls-row" id="voice-controls-row">
-      <button class="voice-main-btn" id="voice-btn" onclick="tapToSpeak()">
+    <!-- HEAR / STOP last response -->
+    <div class="tts-playback-row" style="display:flex; gap:10px; padding:0 24px 10px;">
+      <button id="tts-stop-btn" onclick="stopSensei()" style="padding:8px 14px;background:rgba(50,10,10,0.9);border:2px solid rgba(200,56,42,0.6);border-radius:10px;font-family:'Bangers',cursive;font-size:13px;letter-spacing:1px;color:var(--red);cursor:pointer;display:none;">⏹ STOP</button>
+      <button id="tts-btn" onclick="speakSensei()" style="padding:8px 14px;background:rgba(5,25,40,0.9);border:2px solid rgba(72,202,228,0.4);border-radius:10px;font-family:'Bangers',cursive;font-size:13px;letter-spacing:1px;color:#48cae4;cursor:pointer;display:none;">🔊 HEAR</button>
+    </div>
+
+    <!-- CONSOLIDATED CHAT INPUT BAR — mic, text, send, convo all together -->
+    <div class="dojo-chat-bar">
+      <button class="dojo-mic-btn" id="voice-btn" onclick="tapToSpeak()" title="Tap to speak">
         <span id="voice-icon">🎙️</span>
-        <span id="voice-label">Tap to Speak</span>
       </button>
-      <button id="tts-stop-btn" onclick="stopSensei()" style="padding:10px 16px;background:rgba(50,10,10,0.9);border:2px solid rgba(200,56,42,0.6);border-radius:10px;font-family:'Bangers',cursive;font-size:15px;letter-spacing:1px;color:var(--red);cursor:pointer;display:none;">⏹ STOP</button>
-      <button id="tts-btn" onclick="speakSensei()" style="padding:10px 16px;background:rgba(5,25,40,0.9);border:2px solid rgba(72,202,228,0.4);border-radius:10px;font-family:'Bangers',cursive;font-size:15px;letter-spacing:1px;color:#48cae4;cursor:pointer;display:none;">🔊 HEAR</button>
+      <textarea class="dojo-chat-input" id="coach-input" placeholder="Talk to Sensei…" rows="1" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+      <button class="dojo-send-btn" id="coach-send-btn" onclick="sendMessage()">➤</button>
+    </div>
+    <div class="dojo-chat-subrow">
+      <span class="voice-status" id="voice-status" style="padding:0;">Tap mic to speak, or type below</span>
+      <span id="voice-label" style="display:none;"></span>
       <button class="convo-toggle-btn" id="convo-btn" onclick="toggleConvoMode()">
         <span id="convo-icon">💬</span>
         <span id="convo-label">Convo Mode</span>
       </button>
     </div>
-    <div class="voice-status" id="voice-status">Tap mic to speak, or type below</div>
 
     <!-- 8 ACTION BUTTONS — all full width, same style -->
     <div style="display:flex;flex-direction:column;gap:8px;padding:12px 0;">
@@ -3843,14 +3898,6 @@ body {
     <div class="coach-panel" id="panel-review" style="display:none;">
       <div id="review-online-prompts" style="display:none;"></div>
       <div id="review-offline-prompts" style="display:none;"></div>
-    </div>
-
-<!-- TEXT INPUT -->
-    <div class="coach-input-area">
-      <div class="coach-input-row">
-        <textarea class="coach-textarea" id="coach-input" placeholder="Talk to Sensei… or use a quick prompt above" rows="2" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
-        <button class="coach-send" id="coach-send-btn" onclick="sendMessage()">SEND →</button>
-      </div>
     </div>
 
 </div><!-- end coach-wrap -->
@@ -4483,7 +4530,7 @@ window.addEventListener('offline', () => {
   offlineGreet();
 });
 
-let coachMode = 'journal';
+let coachMode = 'review';
 let coachHistory = [];
 let lastSenseiText = '';
 let lastSenseiMode = 'dumb'; // 'dumb' or 'ai'
@@ -4514,17 +4561,58 @@ function rowsAsObjects(headers, rows) {
   });
 }
 
-async function buildTrainingContext() {
+// Searches the full set of rows for relevance to the current question, instead of
+// just grabbing a fixed number of most-recent rows. Falls back to recency when the
+// query has no specific keywords, and always backfills a few recent rows for
+// continuity even when relevant matches are found.
+function selectRelevantRows(rows, queryText, searchableText, opts) {
+  opts = opts || {};
+  const maxResults = opts.maxResults || 12;
+  const recentBackfill = opts.recentBackfill != null ? opts.recentBackfill : 4;
+  const dateField = opts.dateField;
+
+  const stopWords = new Set(['the','a','an','and','or','of','to','in','on','for','my','me','is','was','it','with','that','this','what','how','do','does','did','i','you','your','about','give','tell','review','me','last','current','my']);
+  const tokens = (queryText || '').toLowerCase().split(/[^a-z0-9']+/).filter(t => t.length > 2 && !stopWords.has(t));
+
+  let sorted = rows.slice();
+  if (dateField) {
+    sorted.sort((a, b) => new Date(b[dateField] || 0) - new Date(a[dateField] || 0));
+  } else {
+    sorted.reverse(); // sheet order is oldest-first; reverse so index 0 = most recent
+  }
+
+  if (tokens.length === 0) {
+    return sorted.slice(0, maxResults);
+  }
+
+  const scored = sorted.map((row, idx) => {
+    const text = (searchableText(row) || '').toLowerCase();
+    let score = 0;
+    tokens.forEach(t => { if (text.includes(t)) score += 1; });
+    const recencyBoost = sorted.length > 1 ? ((sorted.length - idx) / sorted.length) * 0.5 : 0;
+    return { row, score: score + recencyBoost, matched: score > 0 };
+  });
+
+  const matched = scored.filter(s => s.matched).sort((a, b) => b.score - a.score).map(s => s.row);
+  const matchedSet = new Set(matched);
+  const backfill = sorted.filter(r => !matchedSet.has(r)).slice(0, recentBackfill);
+
+  return matched.slice(0, maxResults).concat(backfill);
+}
+
+async function buildTrainingContext(userMsg) {
+  const queryText = (userMsg && userMsg !== '__init__') ? userMsg : '';
   const [dataM, techM, pearlsM, mistakesM, goalsM, libraryM, chainsM, gameplanM] = await Promise.all([
     getMirrorTab('data'), getMirrorTab('techniques'), getMirrorTab('pearls'),
     getMirrorTab('mistakes'), getMirrorTab('goals'), getMirrorTab('library'),
     getMirrorTab('chains'), getMirrorTab('gameplan')
   ]);
 
-  const journalRows = rowsAsObjects(dataM.headers, dataM.rows)
-    .filter(r => r.date)
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 8);
+  const allJournalRows = rowsAsObjects(dataM.headers, dataM.rows).filter(r => r.date);
+  const journalRows = selectRelevantRows(allJournalRows, queryText, r =>
+    [r.lesson, r.standup, r.technique, r.rolls, r.drillwork, r.fundamentals, r.notes].join(' '),
+    { dateField: 'date', maxResults: 10, recentBackfill: 5 }
+  );
 
   const journalText = journalRows.map(r => {
     const parts = [`${r.date} (${r.entry_type || 'class'}, ${r.gi || 'no-gi'})`];
@@ -4543,12 +4631,19 @@ async function buildTrainingContext() {
     .map(r => `${r.date}: ${r.fundamentals}`)
     .join('\n');
 
-  const techRows = rowsAsObjects(techM.headers, techM.rows).slice(-25).reverse();
+  const allTechRows = rowsAsObjects(techM.headers, techM.rows);
+  const techRows = selectRelevantRows(allTechRows, queryText, r =>
+    [r.position, r.technique_label, r.description].join(' '),
+    { maxResults: 15, recentBackfill: 5 }
+  );
   const techniquesText = techRows
     .map(r => `[${r.position || '?'}] ${r.technique_label || ''}: ${r.description || ''}`)
     .join('\n');
 
-  const pearlRows = rowsAsObjects(pearlsM.headers, pearlsM.rows).slice(-20).reverse();
+  const allPearlRows = rowsAsObjects(pearlsM.headers, pearlsM.rows);
+  const pearlRows = selectRelevantRows(allPearlRows, queryText, r => r.pearl,
+    { dateField: allPearlRows[0] && allPearlRows[0].date ? 'date' : undefined, maxResults: 15, recentBackfill: 5 }
+  );
   const pearlsText = pearlRows.map(r => `${r.date || ''}: ${r.pearl || ''}`).join('\n');
 
   const mistakeRows = rowsAsObjects(mistakesM.headers, mistakesM.rows);
@@ -4562,8 +4657,16 @@ async function buildTrainingContext() {
   const chainRows = rowsAsObjects(chainsM.headers, chainsM.rows);
   const chainsText = chainRows.map(r => `${r.chain_label || ''} [${r.position || ''}]: ${r.description || ''}`).join('\n');
 
-  const libRows = rowsAsObjects(libraryM.headers, libraryM.rows).slice(-10).reverse();
+  const allLibRows = rowsAsObjects(libraryM.headers, libraryM.rows);
+  const libRows = selectRelevantRows(allLibRows, queryText, r => [r.title, r.type].join(' '),
+    { maxResults: 10, recentBackfill: 4 }
+  );
   const libraryText = libRows.map(r => `${r.title || ''} (${r.type || ''})`).join('\n');
+
+  const gameplanRows = rowsAsObjects(gameplanM.headers, gameplanM.rows);
+  const gameplanText = gameplanRows.map(r =>
+    Object.values(r).filter(v => v && String(v).trim()).join(' | ')
+  ).filter(line => line).join('\n');
 
   return `
 === STUDENT PROFILE ===
@@ -4592,14 +4695,16 @@ ${chainsText || '(none logged)'}
 
 === RESOURCE LIBRARY (recent) ===
 ${libraryText || '(none added)'}
+
+=== MY GAME PLAN / STRATEGY MAP ===
+${gameplanText || '(no game plan set yet)'}
 `.trim();
 }
 
 function getModeInstruction() {
   const instructions = {
-    journal: `MODE: Voice Journal Assistant. Help the student log their training session. Ask clarifying questions to get: what they drilled, what worked, what didn't, partner notes, and the pearl of the day. At the end, offer to format it as a journal entry. Be efficient — they might be driving home. Keep responses short in this mode.`,
     quiz: `MODE: Quiz Mode. Test the student's knowledge of their own techniques and notes. Ask ONE question at a time. Wait for their answer. Grade it strictly — if they're wrong or incomplete, tell them clearly and give the correct answer from their notes. Keep score. Be harsh but educational.`,
-    scenario: `MODE: Scenario Training. Present realistic sparring scenarios based on the student's current positions and priorities. After they describe what they'd do, coach their answer specifically — what was right, what was wrong, what they missed. Reference their mistake audit when relevant.`,
+    scenario: `MODE: Scenario Training. Present realistic sparring scenarios based on the student's game plan / strategy map, current positions, and priorities. After they describe what they'd do, coach their answer specifically — what was right, what was wrong, what they missed. Reference their mistake audit, their pearls, and their game plan / strategy map when relevant — tie the scenario back to their actual stated strategy, not generic BJJ advice.`,
     review: `MODE: Review / Briefing. The student wants to be briefed — spoon feed them. Give clear, organized summaries of whatever they ask. Reference their actual notes. Be thorough but entertaining. This is the mode where you can be slightly less harsh — they're learning, not being tested.`
   };
   return instructions[coachMode] || instructions.review;
@@ -4643,7 +4748,7 @@ async function sendToSensei(userMsg) {
   document.getElementById('coach-send-btn').disabled = true;
 
   if (!_mirrorLastFullSync) { await refreshAllMirrors(); }
-  const trainingContext = await buildTrainingContext();
+  const trainingContext = await buildTrainingContext(userMsg);
   const systemPrompt = `${SENSEI_PERSONALITY}\n\n${getModeInstruction()}\n\n=== STUDENT'S TRAINING DATA ===\n${trainingContext}`;
 
   // Build message array for API
