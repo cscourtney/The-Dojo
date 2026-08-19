@@ -4691,7 +4691,11 @@ async function sendToSensei(userMsg) {
     setSenseiStatus('speaking');
     setVoiceStatus('✓ Sensei replied — tap mic to speak again');
     addChatMsg('sensei', reply);
-    (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='inline-block';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='none';})();
+    if (convoMode) {
+      (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='inline-block';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='none';})();
+    } else {
+      (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='none';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='inline-block';})();
+    }
 
     // Auto-speak in convo mode, then auto-listen after
     if (convoMode) {
@@ -4706,7 +4710,7 @@ async function sendToSensei(userMsg) {
     setSenseiText(errMsg, false);
     lastSenseiText = errMsg;
     lastSenseiMode = 'dumb';
-    (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='inline-block';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='none';})();
+    (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='none';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='inline-block';})();
     setSenseiStatus('');
     setVoiceStatus('⚠ Sensei call failed — tap mic to try again');
   }
@@ -4819,6 +4823,8 @@ function speakSensei() {
 
     // Auto-listen after speech in convo mode
     utt.onend = () => {
+      (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='none';})();
+      (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='inline-block';})();
       if (convoMode && !isRecording) {
         setTimeout(() => {
           document.getElementById('coach-input').value = '';
@@ -4943,7 +4949,24 @@ function stopListening() {
   }
 }
 
+// iOS Safari only allows speechSynthesis.speak() to actually produce sound
+// when it's called synchronously inside a real tap/click. A later call from
+// inside a setTimeout or after an async fetch (like our AI reply) is silently
+// ignored. Speaking one empty utterance directly inside a real tap "unlocks"
+// the engine so that subsequent async speak() calls work for the rest of the session.
+let _ttsUnlocked = false;
+function unlockTTSForIOS() {
+  if (_ttsUnlocked || !window.speechSynthesis) return;
+  try {
+    const primer = new SpeechSynthesisUtterance('');
+    primer.volume = 0;
+    window.speechSynthesis.speak(primer);
+    _ttsUnlocked = true;
+  } catch(e) {}
+}
+
 function tapToSpeak() {
+  unlockTTSForIOS();
   const btn = document.getElementById('voice-btn');
   const icon = document.getElementById('voice-icon');
   const lbl = document.getElementById('voice-label');
@@ -4962,6 +4985,7 @@ function tapToSpeak() {
 }
 
 function toggleConvoMode() {
+  unlockTTSForIOS();
   convoMode = !convoMode;
   const btn = document.getElementById('convo-btn');
   const lbl = document.getElementById('convo-label');
