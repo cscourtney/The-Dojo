@@ -30,7 +30,45 @@
   --red-line:   rgba(248,113,113,0.4);
   --blue:       #60a5fa;
   --blue-dim:   rgba(96,165,250,0.15);
+  /* Notebook journal view — warm paper, not the app's dark theme */
+  --paper:       #f6efdd;
+  --paper-line:  rgba(28,58,99,0.10);
+  --paper-edge:  #e8dcc0;
+  --ink:         #2b2620;
+  --ink-faint:   rgba(43,38,32,0.55);
+  --ink-accent:  #1c3a63;
 }
+
+/* ── NOTEBOOK PAGE (journal cards / pearl cards / fundamentals) ── */
+.notebook-stage { position:relative; min-height:420px; margin-bottom:16px; perspective:1400px; }
+.notebook-stack-sheet {
+  position:absolute; border-radius:2px 10px 10px 2px;
+  background:var(--paper-edge); border:1px solid rgba(0,0,0,0.15);
+}
+.notebook-page {
+  position:relative; background:
+    repeating-linear-gradient(180deg, transparent 0px, transparent 30px, var(--paper-line) 31px),
+    linear-gradient(135deg, #f9f3e4 0%, var(--paper) 100%);
+  color:var(--ink);
+  border-radius:2px 10px 10px 2px;
+  padding:22px 20px 22px 40px;
+  min-height:400px; max-height:500px; overflow-y:auto;
+  box-shadow:3px 4px 14px rgba(0,0,0,0.35), inset -2px 0 4px rgba(0,0,0,0.06);
+  transform-style:preserve-3d;
+  will-change:transform,opacity;
+}
+.notebook-spine {
+  position:absolute; left:0; top:0; bottom:0; width:28px;
+  background:linear-gradient(90deg, rgba(0,0,0,0.22), rgba(0,0,0,0.02));
+  border-right:1px dashed rgba(0,0,0,0.18);
+  border-radius:2px 0 0 2px;
+}
+.notebook-hole {
+  position:absolute; left:9px; width:10px; height:10px; border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #1c1c1e, #000);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,0.7);
+}
+.notebook-page::-webkit-scrollbar-thumb { background:rgba(28,58,99,0.25); }
 
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html { height:100%; } body { min-height:100%; background:var(--bg); color:var(--chalk); overflow-y:auto; overflow-x:hidden; }
@@ -638,53 +676,6 @@ ul.cl li::before {
   white-space:nowrap; transition:all .15s;
 }
 .coach-send:hover { background:rgba(212,168,67,0.15); }
-
-/* Consolidated chat-style input bar — mic, text, send together, no scrolling required */
-.dojo-chat-bar {
-  display:flex; align-items:center; gap:8px;
-  padding:8px 24px;
-}
-.dojo-mic-btn {
-  flex-shrink:0;
-  width:44px; height:44px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  background:rgba(45,15,15,0.6);
-  border:1px solid rgba(138,48,48,0.4);
-  font-size:20px; padding:0;
-  cursor:pointer; transition:all .2s;
-}
-.dojo-mic-btn.listening {
-  background:rgba(20,50,20,0.6);
-  border-color:var(--green);
-  animation:pulse .7s infinite;
-}
-.dojo-chat-input {
-  flex:1;
-  background:var(--surface);
-  border:1px solid var(--border); border-radius:20px;
-  padding:10px 16px; font-size:14px; color:var(--chalk);
-  font-family:'DM Sans',sans-serif; resize:none;
-  min-height:44px; max-height:120px;
-}
-.dojo-chat-input:focus { outline:none; border-color:var(--gold-dim); }
-.dojo-send-btn {
-  flex-shrink:0;
-  width:44px; height:44px; border-radius:50%;
-  background:var(--gold-faint);
-  border:1px solid var(--gold-line);
-  color:var(--gold); font-size:18px; padding:0;
-  cursor:pointer; transition:all .15s;
-  display:flex; align-items:center; justify-content:center;
-}
-.dojo-send-btn:hover { background:rgba(212,168,67,0.15); }
-.dojo-chat-subrow {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:0 24px 10px; gap:10px;
-}
-@media (max-width:600px) {
-  .dojo-chat-bar { padding:8px 16px; }
-  .dojo-chat-subrow { padding:0 16px 10px; }
-}
 
 .voice-status {
   font-size:11px; color:var(--chalk-faint);
@@ -1524,6 +1515,15 @@ body {
 </div>
   <div class="sec-hdr"><div class="sec-num">✦</div><div><div class="sec-title gd">TRAINING JOURNAL</div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+          <!-- ═══ RAMBLE-TO-LOG (one-shot voice capture, no back-and-forth) ═══ -->
+          <div style="background:var(--surface);border:1px solid var(--gold-line);border-radius:10px;padding:16px;margin-bottom:16px;">
+            <div style="font-family:'Bebas Neue',cursive;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:8px;">🎙 RAMBLE TO LOG</div>
+            <div style="font-size:13px;color:var(--chalk-faint);margin-bottom:12px;line-height:1.4;">Tap, talk about your session in any order for as long as you want, tap again when you're done. No questions, no back-and-forth — it sorts your words into fields afterward for you to review.</div>
+            <button id="ramble-btn" onclick="toggleRambleRecording()" style="width:100%;padding:14px;border-radius:8px;border:2px solid var(--gold);background:var(--gold-faint);color:var(--gold);font-family:'Bebas Neue',cursive;font-size:18px;letter-spacing:2px;cursor:pointer;">🎙 START TALKING</button>
+            <div id="ramble-status" style="text-align:center;font-family:'Bebas Neue',cursive;font-size:13px;color:var(--chalk-faint);margin-top:8px;min-height:18px;"></div>
+            <div id="ramble-transcript" style="display:none;font-size:14px;color:var(--chalk-mid);line-height:1.5;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-top:8px;max-height:150px;overflow-y:auto;"></div>
+          </div>
+
           <!-- ═══ SUPABASE JOURNAL (v31) ═══ -->
           <div style="margin-bottom:6px;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
@@ -1702,23 +1702,27 @@ body {
         <button onclick="signInAndLoad()" style="padding:12px 24px;border-radius:8px;border:none;background:var(--gold);color:#111;font-family:'Bebas Neue',cursive;font-size:18px;letter-spacing:2px;cursor:pointer;">SIGN IN WITH GOOGLE</button>
       </div></div>
 
-          <!-- FLASHCARD view (journal + pearls) -->
+          <!-- FLASHCARD view (journal + pearls) — styled as a notebook page -->
           <div id="j-flashcard-wrap" style="display:none;margin-bottom:20px;">
-            <!-- Stack visual -->
-            <div style="position:relative;min-height:420px;margin-bottom:16px;">
-              <!-- Shadow cards (stack effect) -->
-              <div id="fc-shadow2" style="position:absolute;top:8px;left:8px;right:-8px;bottom:-8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;opacity:0.4;"></div>
-              <div id="fc-shadow1" style="position:absolute;top:4px;left:4px;right:-4px;bottom:-4px;background:var(--surface);border:1px solid var(--border);border-radius:12px;opacity:0.6;"></div>
-              <!-- Main card -->
-              <div id="fc-card" style="position:relative;background:var(--surface);border:1px solid var(--gold);border-radius:12px;padding:20px;min-height:400px;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.15s ease,opacity 0.15s ease;overflow-y:auto;max-height:500px;">
+            <div class="notebook-stage">
+              <!-- Pages stacked underneath, peeking out, implying a book -->
+              <div class="notebook-stack-sheet" style="top:10px;left:10px;right:-6px;bottom:-6px;opacity:0.5;"></div>
+              <div class="notebook-stack-sheet" style="top:5px;left:5px;right:-3px;bottom:-3px;opacity:0.75;"></div>
+              <!-- The page itself -->
+              <div id="fc-card" class="notebook-page">
+                <div class="notebook-spine">
+                  <div class="notebook-hole" style="top:14%;"></div>
+                  <div class="notebook-hole" style="top:48%;"></div>
+                  <div class="notebook-hole" style="top:82%;"></div>
+                </div>
                 <div id="fc-content">Loading...</div>
               </div>
             </div>
             <!-- Navigation -->
             <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:8px;">
-              <button id="fc-prev" onmousedown="startFlip(-1)" onmouseup="stopFlip()" onmouseleave="stopFlip()" ontouchstart="startFlip(-1)" ontouchend="stopFlip()" style="padding:12px 24px;border-radius:8px;border:2px solid var(--gold);background:var(--gold-faint);color:var(--gold);font-family:'Bebas Neue',cursive;font-size:18px;letter-spacing:2px;cursor:pointer;min-width:110px;">◀ PREV</button>
+              <button id="fc-prev" onmousedown="startFlip(-1)" onmouseup="stopFlip()" onmouseleave="stopFlip()" ontouchstart="startFlip(-1)" ontouchend="stopFlip()" style="padding:12px 24px;border-radius:8px;border:2px solid var(--gold);background:var(--gold-faint);color:var(--gold);font-family:'Bebas Neue',cursive;font-size:18px;letter-spacing:2px;cursor:pointer;min-width:110px;">◀ PREV PAGE</button>
               <div id="fc-counter" style="font-family:'Bebas Neue',cursive;font-size:13px;color:var(--chalk-faint);letter-spacing:1px;min-width:60px;text-align:center;"></div>
-              <button id="fc-next" onmousedown="startFlip(1)" onmouseup="stopFlip()" onmouseleave="stopFlip()" ontouchstart="startFlip(1)" ontouchend="stopFlip()" style="padding:12px 24px;border-radius:8px;border:2px solid var(--gold);background:var(--gold-faint);color:var(--gold);font-family:'Bebas Neue',cursive;font-size:18px;letter-spacing:2px;cursor:pointer;min-width:110px;">NEXT ▶</button>
+              <button id="fc-next" onmousedown="startFlip(1)" onmouseup="stopFlip()" onmouseleave="stopFlip()" ontouchstart="startFlip(1)" ontouchend="stopFlip()" style="padding:12px 24px;border-radius:8px;border:2px solid var(--gold);background:var(--gold-faint);color:var(--gold);font-family:'Bebas Neue',cursive;font-size:18px;letter-spacing:2px;cursor:pointer;min-width:110px;">NEXT PAGE ▶</button>
             </div>
           </div>
           <div id="j-loading" style="text-align: center; padding: 20px; color: var(--chalk-faint); font-family: &quot;Bebas Neue&quot;, cursive; font-size: 16px; display: none;">Loading entries...</div>
@@ -1726,25 +1730,13 @@ body {
           <div class="divider"></div>
           <div style="font-family:'Bebas Neue',cursive;font-size:20px;letter-spacing:2px;color:var(--chalk);margin-bottom:14px;">LEGACY ENTRIES</div>
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;">
-            <div style="font-family:'Bebas Neue',cursive;font-size:13px;color:var(--chalk-faint);margin-bottom:8px;">97 entries from training journal (pre-app era) — tap to load</div>
-            <button onclick="syncJournalFromDoc()" style="padding:10px 20px;background:var(--gold-faint);border:1px solid var(--gold-line);border-radius:8px;font-family:'Bebas Neue',cursive;font-size:15px;letter-spacing:2px;color:var(--gold);cursor:pointer;">⟳ LOAD LEGACY JOURNAL</button>
+            <div style="font-family:'Bebas Neue',cursive;font-size:13px;color:var(--chalk-faint);margin-bottom:8px;">Pre-app training journal — tap to scan for entries not yet in your Sheet</div>
+            <button onclick="syncJournalFromDoc()" style="padding:10px 20px;background:var(--gold-faint);border:1px solid var(--gold-line);border-radius:8px;font-family:'Bebas Neue',cursive;font-size:15px;letter-spacing:2px;color:var(--gold);cursor:pointer;">⟳ SCAN LEGACY JOURNAL</button>
             <span id="journal-sync-status" style="display:block;margin-top:8px;font-size:13px;color:var(--chalk-faint);font-style:italic;"></span>
           </div>
-          <div id="journal-sync-content" style="display:none;white-space:pre-wrap;font-size:16px;color:var(--chalk-mid);line-height:1.75;padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;"></div>
+          <div id="journal-sync-content" style="display:none;font-size:15px;color:var(--chalk-mid);line-height:1.6;padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;"></div>
           <div id="journal-empty" style="display:none;"></div>
 
-          <!-- ══ DEVELOPER TOOLS (remove before sharing) ══ -->
-          <div style="margin-top:30px;padding:16px;background:#0a0a14;border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
-            <div style="font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:2px;color:rgba(255,255,255,0.2);margin-bottom:12px;">DEVELOPER — REMOVE BEFORE SHARING</div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-              <div style="flex:1;min-width:200px;">
-                <label style="display:block;font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2px;color:rgba(255,255,255,0.3);margin-bottom:4px;">GITHUB TOKEN</label>
-                <input id="gh-token-input" type="password" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;padding:8px 10px;background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:rgba(255,255,255,0.6);font-family:'Oswald',sans-serif;font-size:13px;box-sizing:border-box;">
-              </div>
-              <button onclick="publishToGitHub()" style="padding:10px 20px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#111;color:rgba(255,255,255,0.5);font-family:'Bebas Neue',cursive;font-size:15px;letter-spacing:2px;cursor:pointer;">⬆ PUBLISH TO GITHUB</button>
-            </div>
-            <div id="gh-publish-msg" style="font-family: Oswald, sans-serif; font-size: 12px; color: rgba(255, 255, 255, 0.4); margin-top: 8px; min-height: 18px;">Uploading file...</div>
-          </div>
           <!-- ══ END DEVELOPER TOOLS ══ -->
 </div>
 </div>
@@ -3856,28 +3848,20 @@ body {
   white-space:pre-wrap;
 "></div>
 
-    <!-- HEAR / STOP last response -->
-    <div class="tts-playback-row" style="display:flex; gap:10px; padding:0 24px 10px;">
-      <button id="tts-stop-btn" onclick="stopSensei()" style="padding:8px 14px;background:rgba(50,10,10,0.9);border:2px solid rgba(200,56,42,0.6);border-radius:10px;font-family:'Bangers',cursive;font-size:13px;letter-spacing:1px;color:var(--red);cursor:pointer;display:none;">⏹ STOP</button>
-      <button id="tts-btn" onclick="speakSensei()" style="padding:8px 14px;background:rgba(5,25,40,0.9);border:2px solid rgba(72,202,228,0.4);border-radius:10px;font-family:'Bangers',cursive;font-size:13px;letter-spacing:1px;color:#48cae4;cursor:pointer;display:none;">🔊 HEAR</button>
-    </div>
-
-    <!-- CONSOLIDATED CHAT INPUT BAR — mic, text, send, convo all together -->
-    <div class="dojo-chat-bar">
-      <button class="dojo-mic-btn" id="voice-btn" onclick="tapToSpeak()" title="Tap to speak">
+    <!-- VOICE CONTROLS -->
+    <div class="voice-controls-row" id="voice-controls-row">
+      <button class="voice-main-btn" id="voice-btn" onclick="tapToSpeak()">
         <span id="voice-icon">🎙️</span>
+        <span id="voice-label">Tap to Speak</span>
       </button>
-      <textarea class="dojo-chat-input" id="coach-input" placeholder="Talk to Sensei…" rows="1" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
-      <button class="dojo-send-btn" id="coach-send-btn" onclick="sendMessage()">➤</button>
-    </div>
-    <div class="dojo-chat-subrow">
-      <span class="voice-status" id="voice-status" style="padding:0;">Tap mic to speak, or type below</span>
-      <span id="voice-label" style="display:none;"></span>
+      <button id="tts-stop-btn" onclick="stopSensei()" style="padding:10px 16px;background:rgba(50,10,10,0.9);border:2px solid rgba(200,56,42,0.6);border-radius:10px;font-family:'Bangers',cursive;font-size:15px;letter-spacing:1px;color:var(--red);cursor:pointer;display:none;">⏹ STOP</button>
+      <button id="tts-btn" onclick="speakSensei()" style="padding:10px 16px;background:rgba(5,25,40,0.9);border:2px solid rgba(72,202,228,0.4);border-radius:10px;font-family:'Bangers',cursive;font-size:15px;letter-spacing:1px;color:#48cae4;cursor:pointer;display:none;">🔊 HEAR</button>
       <button class="convo-toggle-btn" id="convo-btn" onclick="toggleConvoMode()">
         <span id="convo-icon">💬</span>
         <span id="convo-label">Convo Mode</span>
       </button>
     </div>
+    <div class="voice-status" id="voice-status">Tap mic to speak, or type below</div>
 
     <!-- 8 ACTION BUTTONS — all full width, same style -->
     <div style="display:flex;flex-direction:column;gap:8px;padding:12px 0;">
@@ -3888,7 +3872,7 @@ body {
       <button class="sensei-action-btn" onclick="sendToSensei('Review my pearls with me. Read each one back and tell me why it matters to my game specifically.')">Pearl Review</button>
       <button class="sensei-action-btn" onclick="sendToSensei('Review my current mistake audit. Which mistakes am I still making and what is the root cause of each one?')">Mistakes Review</button>
       <button class="sensei-action-btn" onclick="sendToSensei('Give me a strategy briefing — what is my game plan, what are my home positions, and what should I be thinking about before I roll?')">Strategy Brief</button>
-      <button class="sensei-action-btn" onclick="sendToSensei('Give me a motivational pre-training speech. Make it intense but reference my actual weak points.')">Training Prep</button>
+      <button class="sensei-action-btn" onclick="dumbSensei('classprep'); show('coach')">Training Prep</button>
     </div>
 
     <!-- HIDDEN PANELS for JS compatibility -->
@@ -3898,6 +3882,14 @@ body {
     <div class="coach-panel" id="panel-review" style="display:none;">
       <div id="review-online-prompts" style="display:none;"></div>
       <div id="review-offline-prompts" style="display:none;"></div>
+    </div>
+
+<!-- TEXT INPUT -->
+    <div class="coach-input-area">
+      <div class="coach-input-row">
+        <textarea class="coach-textarea" id="coach-input" placeholder="Talk to Sensei… or use a quick prompt above" rows="2" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+        <button class="coach-send" id="coach-send-btn" onclick="sendMessage()">SEND →</button>
+      </div>
     </div>
 
 </div><!-- end coach-wrap -->
@@ -4271,6 +4263,63 @@ function getPriorities() {
   return pris;
 }
 
+// ═══════════════════════════════════════════
+// CLASS PREP — standardized briefing, always pre-built
+// ═══════════════════════════════════════════
+// Fixed spec (do not vary this per-request — it needs to be the
+// same shape every single time so it can be trusted and skimmed
+// fast in the car):
+//   1. Top active priority (1 item — the #1 focus only)
+//   2. Active mistakes to watch for (max 3, most recently logged)
+//   3. Most recent pearl
+//   4. Last class — one-line recap (lesson/technique from the most
+//      recent journal entry)
+//   5. One pre-roll checklist item (rotates daily so it stays fresh)
+// This is assembled from data already on the page — no AI call — so
+// it is instant and safe to trigger from the car. It rebuilds itself
+// every time loadJEntries() runs (sign-in, page load, or right after
+// a new entry is saved), so it's never more than one save behind.
+function buildClassPrep() {
+  const pris = getPriorities();
+  const mistakes = getMistakes();
+  const pearls = getPearls();
+  const entries = window._allJEntries || [];
+  const last = entries[0]; // newest first
+
+  let text = '';
+  text += pris.length ? `TOP FOCUS: ${pris[0]}\n\n` : `TOP FOCUS: (none set — add one in Priorities)\n\n`;
+
+  if (mistakes.length) {
+    text += `WATCH FOR:\n`;
+    mistakes.slice(0, 3).forEach((m, i) => { text += `${i+1}. ${m}\n`; });
+    text += `\n`;
+  }
+
+  if (pearls.length) {
+    text += `RECENT PEARL: ${pearls[pearls.length - 1]}\n\n`;
+  }
+
+  if (last) {
+    const bits = [last.technique, last.lesson, last.standup].filter(Boolean);
+    if (bits.length) text += `LAST SESSION (${last.date}): ${bits.join(' — ').slice(0, 200)}\n\n`;
+  }
+
+  // Rotate the checklist item by day-of-year so it's a different one each day
+  const dayIdx = Math.floor(Date.now() / 86400000) % CHECKLIST_ITEMS.length;
+  text += `CHECKLIST: ${CHECKLIST_ITEMS[dayIdx]}`;
+
+  window._classPrepText = text.trim();
+  window._classPrepBuiltAt = Date.now();
+  return window._classPrepText;
+}
+
+function getClassPrep() {
+  // Always rebuild if we've never built it (e.g. dumbSensei mode used
+  // before any journal load happened this session)
+  if (!window._classPrepText) return buildClassPrep();
+  return window._classPrepText;
+}
+
 function dumbSensei(topic) {
   const intro = getRandom(DUMB_INTROS);
   const transition = getRandom(DUMB_TRANSITIONS);
@@ -4279,6 +4328,11 @@ function dumbSensei(topic) {
   let speakText = '';
 
   switch(topic) {
+
+    case 'classprep': {
+      content = `${transition} your prep for class:\n\n${getClassPrep()}\n\nThat's it. Short and standardized on purpose — you're driving. Go get after it.`;
+      break;
+    }
 
     case 'pearls': {
       const pearls = getPearls();
@@ -4530,7 +4584,7 @@ window.addEventListener('offline', () => {
   offlineGreet();
 });
 
-let coachMode = 'review';
+let coachMode = 'journal';
 let coachHistory = [];
 let lastSenseiText = '';
 let lastSenseiMode = 'dumb'; // 'dumb' or 'ai'
@@ -4561,58 +4615,17 @@ function rowsAsObjects(headers, rows) {
   });
 }
 
-// Searches the full set of rows for relevance to the current question, instead of
-// just grabbing a fixed number of most-recent rows. Falls back to recency when the
-// query has no specific keywords, and always backfills a few recent rows for
-// continuity even when relevant matches are found.
-function selectRelevantRows(rows, queryText, searchableText, opts) {
-  opts = opts || {};
-  const maxResults = opts.maxResults || 12;
-  const recentBackfill = opts.recentBackfill != null ? opts.recentBackfill : 4;
-  const dateField = opts.dateField;
-
-  const stopWords = new Set(['the','a','an','and','or','of','to','in','on','for','my','me','is','was','it','with','that','this','what','how','do','does','did','i','you','your','about','give','tell','review','me','last','current','my']);
-  const tokens = (queryText || '').toLowerCase().split(/[^a-z0-9']+/).filter(t => t.length > 2 && !stopWords.has(t));
-
-  let sorted = rows.slice();
-  if (dateField) {
-    sorted.sort((a, b) => new Date(b[dateField] || 0) - new Date(a[dateField] || 0));
-  } else {
-    sorted.reverse(); // sheet order is oldest-first; reverse so index 0 = most recent
-  }
-
-  if (tokens.length === 0) {
-    return sorted.slice(0, maxResults);
-  }
-
-  const scored = sorted.map((row, idx) => {
-    const text = (searchableText(row) || '').toLowerCase();
-    let score = 0;
-    tokens.forEach(t => { if (text.includes(t)) score += 1; });
-    const recencyBoost = sorted.length > 1 ? ((sorted.length - idx) / sorted.length) * 0.5 : 0;
-    return { row, score: score + recencyBoost, matched: score > 0 };
-  });
-
-  const matched = scored.filter(s => s.matched).sort((a, b) => b.score - a.score).map(s => s.row);
-  const matchedSet = new Set(matched);
-  const backfill = sorted.filter(r => !matchedSet.has(r)).slice(0, recentBackfill);
-
-  return matched.slice(0, maxResults).concat(backfill);
-}
-
-async function buildTrainingContext(userMsg) {
-  const queryText = (userMsg && userMsg !== '__init__') ? userMsg : '';
+async function buildTrainingContext() {
   const [dataM, techM, pearlsM, mistakesM, goalsM, libraryM, chainsM, gameplanM] = await Promise.all([
     getMirrorTab('data'), getMirrorTab('techniques'), getMirrorTab('pearls'),
     getMirrorTab('mistakes'), getMirrorTab('goals'), getMirrorTab('library'),
     getMirrorTab('chains'), getMirrorTab('gameplan')
   ]);
 
-  const allJournalRows = rowsAsObjects(dataM.headers, dataM.rows).filter(r => r.date);
-  const journalRows = selectRelevantRows(allJournalRows, queryText, r =>
-    [r.lesson, r.standup, r.technique, r.rolls, r.drillwork, r.fundamentals, r.notes].join(' '),
-    { dateField: 'date', maxResults: 10, recentBackfill: 5 }
-  );
+  const journalRows = rowsAsObjects(dataM.headers, dataM.rows)
+    .filter(r => r.date)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 8);
 
   const journalText = journalRows.map(r => {
     const parts = [`${r.date} (${r.entry_type || 'class'}, ${r.gi || 'no-gi'})`];
@@ -4631,19 +4644,12 @@ async function buildTrainingContext(userMsg) {
     .map(r => `${r.date}: ${r.fundamentals}`)
     .join('\n');
 
-  const allTechRows = rowsAsObjects(techM.headers, techM.rows);
-  const techRows = selectRelevantRows(allTechRows, queryText, r =>
-    [r.position, r.technique_label, r.description].join(' '),
-    { maxResults: 15, recentBackfill: 5 }
-  );
+  const techRows = rowsAsObjects(techM.headers, techM.rows).slice(-25).reverse();
   const techniquesText = techRows
     .map(r => `[${r.position || '?'}] ${r.technique_label || ''}: ${r.description || ''}`)
     .join('\n');
 
-  const allPearlRows = rowsAsObjects(pearlsM.headers, pearlsM.rows);
-  const pearlRows = selectRelevantRows(allPearlRows, queryText, r => r.pearl,
-    { dateField: allPearlRows[0] && allPearlRows[0].date ? 'date' : undefined, maxResults: 15, recentBackfill: 5 }
-  );
+  const pearlRows = rowsAsObjects(pearlsM.headers, pearlsM.rows).slice(-20).reverse();
   const pearlsText = pearlRows.map(r => `${r.date || ''}: ${r.pearl || ''}`).join('\n');
 
   const mistakeRows = rowsAsObjects(mistakesM.headers, mistakesM.rows);
@@ -4657,16 +4663,8 @@ async function buildTrainingContext(userMsg) {
   const chainRows = rowsAsObjects(chainsM.headers, chainsM.rows);
   const chainsText = chainRows.map(r => `${r.chain_label || ''} [${r.position || ''}]: ${r.description || ''}`).join('\n');
 
-  const allLibRows = rowsAsObjects(libraryM.headers, libraryM.rows);
-  const libRows = selectRelevantRows(allLibRows, queryText, r => [r.title, r.type].join(' '),
-    { maxResults: 10, recentBackfill: 4 }
-  );
+  const libRows = rowsAsObjects(libraryM.headers, libraryM.rows).slice(-10).reverse();
   const libraryText = libRows.map(r => `${r.title || ''} (${r.type || ''})`).join('\n');
-
-  const gameplanRows = rowsAsObjects(gameplanM.headers, gameplanM.rows);
-  const gameplanText = gameplanRows.map(r =>
-    Object.values(r).filter(v => v && String(v).trim()).join(' | ')
-  ).filter(line => line).join('\n');
 
   return `
 === STUDENT PROFILE ===
@@ -4695,16 +4693,14 @@ ${chainsText || '(none logged)'}
 
 === RESOURCE LIBRARY (recent) ===
 ${libraryText || '(none added)'}
-
-=== MY GAME PLAN / STRATEGY MAP ===
-${gameplanText || '(no game plan set yet)'}
 `.trim();
 }
 
 function getModeInstruction() {
   const instructions = {
+    journal: `MODE: Voice Journal Assistant. Help the student log their training session. Ask clarifying questions to get: what they drilled, what worked, what didn't, partner notes, and the pearl of the day. At the end, offer to format it as a journal entry. Be efficient — they might be driving home. Keep responses short in this mode.`,
     quiz: `MODE: Quiz Mode. Test the student's knowledge of their own techniques and notes. Ask ONE question at a time. Wait for their answer. Grade it strictly — if they're wrong or incomplete, tell them clearly and give the correct answer from their notes. Keep score. Be harsh but educational.`,
-    scenario: `MODE: Scenario Training. Present realistic sparring scenarios based on the student's game plan / strategy map, current positions, and priorities. After they describe what they'd do, coach their answer specifically — what was right, what was wrong, what they missed. Reference their mistake audit, their pearls, and their game plan / strategy map when relevant — tie the scenario back to their actual stated strategy, not generic BJJ advice.`,
+    scenario: `MODE: Scenario Training. Present realistic sparring scenarios based on the student's current positions and priorities. After they describe what they'd do, coach their answer specifically — what was right, what was wrong, what they missed. Reference their mistake audit when relevant.`,
     review: `MODE: Review / Briefing. The student wants to be briefed — spoon feed them. Give clear, organized summaries of whatever they ask. Reference their actual notes. Be thorough but entertaining. This is the mode where you can be slightly less harsh — they're learning, not being tested.`
   };
   return instructions[coachMode] || instructions.review;
@@ -4748,7 +4744,7 @@ async function sendToSensei(userMsg) {
   document.getElementById('coach-send-btn').disabled = true;
 
   if (!_mirrorLastFullSync) { await refreshAllMirrors(); }
-  const trainingContext = await buildTrainingContext(userMsg);
+  const trainingContext = await buildTrainingContext();
   const systemPrompt = `${SENSEI_PERSONALITY}\n\n${getModeInstruction()}\n\n=== STUDENT'S TRAINING DATA ===\n${trainingContext}`;
 
   // Build message array for API
@@ -4768,11 +4764,11 @@ async function sendToSensei(userMsg) {
 
   try {
     console.log('Calling proxy with', messages.length, 'messages');
-    const response = await fetch(DOJO_PROXY_URL, {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': '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', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
         system: systemPrompt,
         messages: messages
@@ -4794,13 +4790,8 @@ async function sendToSensei(userMsg) {
 
     setSenseiText(reply, false);
     setSenseiStatus('speaking');
-    setVoiceStatus('✓ Sensei replied — tap mic to speak again');
-    addChatMsg('sensei', reply);
-    if (convoMode) {
-      (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='inline-block';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='none';})();
-    } else {
-      (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='none';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='inline-block';})();
-    }
+    if (userMsg !== '__init__') addChatMsg('sensei', reply);
+    (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='inline-block';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='none';})();
 
     // Auto-speak in convo mode, then auto-listen after
     if (convoMode) {
@@ -4815,9 +4806,8 @@ async function sendToSensei(userMsg) {
     setSenseiText(errMsg, false);
     lastSenseiText = errMsg;
     lastSenseiMode = 'dumb';
-    (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='none';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='inline-block';})();
+    (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='inline-block';})(); (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='none';})();
     setSenseiStatus('');
-    setVoiceStatus('⚠ Sensei call failed — tap mic to try again');
   }
 
   document.getElementById('coach-send-btn').disabled = false;
@@ -4848,15 +4838,9 @@ function addChatMsg(role, text) {
 
 function setSenseiText(text, isThinking) {
   const el = document.getElementById('sensei-text');
-  if (el) {
-    el.className = 'sensei-text' + (isThinking ? ' thinking-anim' : '');
-    el.textContent = isThinking ? 'Thinking' : text;
-  }
-  const box = document.getElementById('sensei-response-box');
-  if (box) {
-    box.style.display = 'block';
-    box.textContent = isThinking ? '⛩ Sensei is thinking…' : text;
-  }
+  if (!el) return;
+  el.className = 'sensei-text' + (isThinking ? ' thinking-anim' : '');
+  el.textContent = isThinking ? 'Thinking' : text;
 }
 
 function setSenseiStatus(state) {
@@ -4928,8 +4912,6 @@ function speakSensei() {
 
     // Auto-listen after speech in convo mode
     utt.onend = () => {
-      (function(){var _e=document.getElementById('tts-stop-btn');if(_e)_e.style.display='none';})();
-      (function(){var _e=document.getElementById('tts-btn');if(_e)_e.style.display='inline-block';})();
       if (convoMode && !isRecording) {
         setTimeout(() => {
           document.getElementById('coach-input').value = '';
@@ -5054,24 +5036,7 @@ function stopListening() {
   }
 }
 
-// iOS Safari only allows speechSynthesis.speak() to actually produce sound
-// when it's called synchronously inside a real tap/click. A later call from
-// inside a setTimeout or after an async fetch (like our AI reply) is silently
-// ignored. Speaking one empty utterance directly inside a real tap "unlocks"
-// the engine so that subsequent async speak() calls work for the rest of the session.
-let _ttsUnlocked = false;
-function unlockTTSForIOS() {
-  if (_ttsUnlocked || !window.speechSynthesis) return;
-  try {
-    const primer = new SpeechSynthesisUtterance('');
-    primer.volume = 0;
-    window.speechSynthesis.speak(primer);
-    _ttsUnlocked = true;
-  } catch(e) {}
-}
-
 function tapToSpeak() {
-  unlockTTSForIOS();
   const btn = document.getElementById('voice-btn');
   const icon = document.getElementById('voice-icon');
   const lbl = document.getElementById('voice-label');
@@ -5090,7 +5055,6 @@ function tapToSpeak() {
 }
 
 function toggleConvoMode() {
-  unlockTTSForIOS();
   convoMode = !convoMode;
   const btn = document.getElementById('convo-btn');
   const lbl = document.getElementById('convo-label');
@@ -5172,9 +5136,6 @@ function setFont(size) {
 })();
 
 const HAS_API_KEY = true;
-// URL of the Cloudflare Worker proxy that holds the real Anthropic key server-side.
-// Replace with your actual Worker URL after deploying (looks like https://dojo-sensei.YOURNAME.workers.dev)
-const DOJO_PROXY_URL = 'https://thedojo.livingthesearch1.workers.dev';
 
 function coachInit() {
   // Pre-warm voice recognition (requests permission early)
@@ -5525,6 +5486,7 @@ function parseVoiceIntent(text) {
   if (t.includes('random pearl') || t.includes('surprise me')) return { type:'sensei', topic:'random_pearl' };
   if (t.includes('mistake') || t.includes('doing wrong') || t.includes('errors')) return { type:'sensei', topic:'mistakes' };
   if (t.includes('priorit') || t.includes('focus') || t.includes('work on')) return { type:'sensei', topic:'priorities' };
+  if (t.includes('prep') || t.includes('get me ready') || t.includes('ready for class') || t.includes('ready for training')) return { type:'sensei', topic:'classprep' };
   if (t.includes('checklist') || t.includes('pre roll') || t.includes('before training')) return { type:'sensei', topic:'checklist' };
   if (t.includes('week') || t.includes('review') || t.includes('how did i do')) return { type:'sensei', topic:'week_review' };
   if (t.includes('hype') || t.includes('motivat') || t.includes('pump') || t.includes('speech')) return { type:'sensei', topic:'hype' };
@@ -5595,7 +5557,7 @@ function executeVoiceIntent(intent, isOverlay) {
     }, 800);
 
   } else if (intent.type === 'menu') {
-    var menuText = "You can say: read my pearls, review my week, log my training, add a pearl, my mistakes, my priorities, pre-roll checklist, hype me up, or navigate to any section like guard passing, the back, or butterfly guard.";
+    var menuText = "You can say: prep me for class, read my pearls, review my week, log my training, add a pearl, my mistakes, my priorities, pre-roll checklist, hype me up, or navigate to any section like guard passing, the back, or butterfly guard.";
     respond(menuText);
     speakFn(menuText);
 
@@ -6257,24 +6219,150 @@ function closeDrawer() {
 // ── GOOGLE DOC JOURNAL SYNC ──
 const JOURNAL_PROXY = 'https://docs.google.com/document/d/1lzWW7npxf0TU8Y_2e_m6vEP-gdP9KAvw/export?format=txt';
 
+// ── Legacy journal parsing ──
+// The pre-app journal doc mixes two things: dated journal entries
+// (a line that's just a date, followed by prose) and "Batch N"
+// sections, which are technique reference material — not journal
+// entries — and belong on position pages instead (per the v32
+// handoff notes). This splits the raw text into typed blocks so
+// each can be routed correctly instead of dumping everything into
+// the journal as one undifferentiated blob.
+const LEGACY_DATE_RE = /^\s*(?:[A-Za-z]{3,9}\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{1,2}-\d{1,2})\s*:?\s*$/;
+const LEGACY_BATCH_RE = /^\s*batch\s*#?\s*(\d+)\s*:?\s*$/i;
+
+function parseLegacyJournalText(rawText) {
+  const lines = rawText.split(/\r?\n/);
+  const blocks = [];
+  let current = null;
+
+  for (const line of lines) {
+    const dateMatch = line.match(LEGACY_DATE_RE);
+    const batchMatch = line.match(LEGACY_BATCH_RE);
+    if (dateMatch) {
+      if (current && current.lines.some(l => l.trim())) blocks.push(current);
+      current = { type: 'dated', dateRaw: line.trim().replace(/:$/, ''), lines: [] };
+    } else if (batchMatch) {
+      if (current && current.lines.some(l => l.trim())) blocks.push(current);
+      current = { type: 'batch', batchNum: +batchMatch[1], lines: [] };
+    } else {
+      if (!current) current = { type: 'preamble', lines: [] };
+      current.lines.push(line);
+    }
+  }
+  if (current && current.lines.some(l => l.trim())) blocks.push(current);
+
+  return blocks
+    .filter(b => b.type !== 'preamble')
+    .map(b => ({
+      type: b.type,
+      batchNum: b.batchNum,
+      dateRaw: b.dateRaw,
+      dateEpoch: b.type === 'dated' ? parseEntryDate(b.dateRaw) : null,
+      text: b.lines.join('\n').trim()
+    }))
+    .filter(b => b.text); // drop empty blocks
+}
+
+// A short fingerprint used to dedupe — normalized date + first
+// stretch of the text, so re-scanning the same doc twice (or a doc
+// that's grown since the last scan) doesn't create duplicate rows.
+function legacyFingerprint(dateEpoch, text) {
+  return dateEpoch + '|' + text.replace(/\s+/g, ' ').trim().slice(0, 60).toLowerCase();
+}
+
+let _legacyParsedDated = []; // entries staged for import after preview
+
 async function syncJournalFromDoc() {
   const status = document.getElementById('journal-sync-status');
   const content = document.getElementById('journal-sync-content');
   const empty = document.getElementById('journal-empty');
-  if (status) { status.textContent = 'Syncing...'; status.style.color = 'var(--chalk-faint)'; }
+  if (status) { status.textContent = 'Fetching and scanning...'; status.style.color = 'var(--chalk-faint)'; }
+
   try {
     const res = await fetch(JOURNAL_PROXY);
     const text = await res.text();
-    if (text) {
-      const data = { content: text };
-      window.syncedJournalContent = text; // Store for AI Sensei context
-      if (content) { content.textContent = data.content; content.style.display = 'block'; }
-      if (empty) empty.style.display = 'none';
-      if (status) { status.textContent = '✓ Synced — ' + new Date().toLocaleTimeString(); status.style.color = 'var(--green)'; }
+    if (!text) throw new Error('Empty document');
+
+    const blocks = parseLegacyJournalText(text);
+    const dated = blocks.filter(b => b.type === 'dated');
+    const batches = blocks.filter(b => b.type === 'batch');
+
+    // Compare against what's already in the Sheet (loaded via loadJEntries)
+    const existing = window._allJEntries || [];
+    const existingFingerprints = new Set(
+      existing.map(e => legacyFingerprint(parseEntryDate(e.date), [e.lesson, e.standup, e.technique, e.rolls, e.notes].filter(Boolean).join(' ')))
+    );
+    const newDated = dated.filter(d => !existingFingerprints.has(legacyFingerprint(d.dateEpoch, d.text)));
+
+    _legacyParsedDated = newDated;
+
+    if (status) { status.textContent = '✓ Scanned — ' + new Date().toLocaleTimeString(); status.style.color = 'var(--green)'; }
+    if (empty) empty.style.display = 'none';
+
+    if (content) {
+      content.style.display = 'block';
+      let html = `<div style="font-family:'Bebas Neue',cursive;font-size:15px;letter-spacing:1px;color:var(--chalk);margin-bottom:10px;">
+        FOUND ${dated.length} DATED ENTRIES — ${newDated.length} NEW, ${dated.length - newDated.length} ALREADY IN YOUR JOURNAL
+      </div>`;
+      if (batches.length) {
+        html += `<div style="font-family:'Bebas Neue',cursive;font-size:13px;color:var(--gold);margin-bottom:14px;">
+          + ${batches.length} "Batch" technique-reference block${batches.length === 1 ? '' : 's'} found — these are NOT imported as journal entries.
+          They read as technique material and belong on position pages, so review them yourself below rather than have them auto-filed to a guess.
+        </div>`;
+        batches.forEach(b => {
+          html += `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:8px;">
+            <div style="font-family:'Bebas Neue',cursive;font-size:12px;color:var(--gold);margin-bottom:4px;">BATCH ${b.batchNum}</div>
+            <div style="font-size:13px;color:var(--chalk-faint);white-space:pre-wrap;">${b.text.slice(0,300)}${b.text.length>300?'…':''}</div>
+          </div>`;
+        });
+      }
+      if (newDated.length) {
+        html += `<button onclick="importLegacyEntries()" style="margin-top:8px;padding:10px 20px;background:var(--gold);border:none;border-radius:8px;font-family:'Bebas Neue',cursive;font-size:15px;letter-spacing:2px;color:#111;cursor:pointer;">IMPORT ${newDated.length} NEW ENTR${newDated.length===1?'Y':'IES'}</button>
+          <div id="legacy-import-status" style="margin-top:8px;font-size:13px;color:var(--chalk-faint);"></div>`;
+      } else {
+        html += `<div style="font-family:'Bebas Neue',cursive;font-size:13px;color:var(--chalk-faint);">Nothing new to import — your journal is already caught up with this doc.</div>`;
+      }
+      content.innerHTML = html;
     }
   } catch(e) {
-    if (status) { status.textContent = 'Sync failed — check connection'; status.style.color = 'var(--red)'; }
-    console.warn('Journal sync failed:', e);
+    if (status) { status.textContent = 'Scan failed — check connection'; status.style.color = 'var(--red)'; }
+    console.warn('Journal scan failed:', e);
+  }
+}
+
+// Writes the staged new dated entries into the Sheet, one row per
+// entry, tagged so they're identifiable as auto-imported (entry_type
+// 'legacy' rather than guessing 'class' — Chuck can reclassify by hand
+// since the raw prose doesn't reliably say gi/no-gi or class/drill).
+async function importLegacyEntries() {
+  const statusEl = document.getElementById('legacy-import-status');
+  if (!_legacyParsedDated.length) return;
+  if (statusEl) statusEl.textContent = `Importing 0 / ${_legacyParsedDated.length}...`;
+
+  try {
+    await getGSToken();
+    let done = 0;
+    for (const entry of _legacyParsedDated) {
+      const dateISO = entry.dateEpoch ? new Date(entry.dateEpoch).toISOString().split('T')[0] : '';
+      const row = [
+        'legacy_' + (entry.dateEpoch || Date.now()) + '_' + done,
+        dateISO, 'legacy', '', entry.text, '', '', '', '', '', '', 'Imported from legacy journal doc — reclassify gi/type if needed',
+        new Date().toISOString(), '', '', '', ''
+      ];
+      const res = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${GS_SHEET_ID}/values/${encodeURIComponent(GS_DATA_RANGE)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { method: 'POST', headers: gsHeaders(), body: JSON.stringify({ values: [row] }) }
+      );
+      if (res.ok) done++;
+      if (statusEl) statusEl.textContent = `Importing ${done} / ${_legacyParsedDated.length}...`;
+    }
+    if (statusEl) { statusEl.textContent = `✓ Imported ${done} of ${_legacyParsedDated.length} entries.`; statusEl.style.color = 'var(--green)'; }
+    _legacyParsedDated = [];
+    refreshMirrorTab('data');
+    loadJEntries();
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = 'Import failed — check sign-in and try again.'; statusEl.style.color = '#e87070'; }
+    console.error('Legacy import failed:', e);
   }
 }
 
@@ -6406,6 +6494,158 @@ function jMsg(msg, color) {
   el.style.color = color || 'var(--gold)';
   setTimeout(() => { el.textContent = ''; }, 3500);
 }
+
+// ══════════════════════════════════════════════════════
+// RAMBLE-TO-LOG — one-shot voice journal capture.
+// Deliberately NOT a conversation: start, talk about anything
+// in any order, stop. The whole transcript is sent to Claude
+// exactly once afterward to be sorted into fields — there is
+// no live turn-taking, so nothing can interrupt you or mistime
+// a prompt while you're driving. If recognition auto-cuts out
+// mid-ramble (some browsers stop continuous listening after
+// ~60s), it silently restarts and keeps appending rather than
+// treating that as you being done.
+// ══════════════════════════════════════════════════════
+let _rambleRecognition = null;
+let _rambleActive = false;
+let _rambleTranscript = '';
+
+function toggleRambleRecording() {
+  if (_rambleActive) { stopRambleRecording(); } else { startRambleRecording(); }
+}
+
+function startRambleRecording() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const btn = document.getElementById('ramble-btn');
+  const status = document.getElementById('ramble-status');
+  const transcriptEl = document.getElementById('ramble-transcript');
+  if (!SpeechRec) {
+    if (status) status.textContent = 'Voice not supported in this browser — type your entry below instead.';
+    return;
+  }
+
+  _rambleTranscript = '';
+  _rambleActive = true;
+  if (transcriptEl) { transcriptEl.style.display = 'block'; transcriptEl.textContent = ''; }
+  if (btn) { btn.textContent = '⏹ STOP & SORT INTO FIELDS'; btn.style.background = 'rgba(232,112,112,0.15)'; btn.style.borderColor = '#e87070'; btn.style.color = '#e87070'; }
+  if (status) status.textContent = "Listening — talk about anything, any order...";
+
+  _rambleRecognition = new SpeechRec();
+  _rambleRecognition.lang = 'en-US';
+  _rambleRecognition.continuous = true;
+  _rambleRecognition.interimResults = true;
+
+  _rambleRecognition.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) _rambleTranscript += t + ' ';
+      else interim += t;
+    }
+    if (transcriptEl) transcriptEl.textContent = _rambleTranscript + interim;
+  };
+
+  _rambleRecognition.onerror = (e) => {
+    // Don't stop the whole capture over a transient hiccup — just note it.
+    // A hard 'not-allowed' is the only one worth surfacing immediately.
+    if (e.error === 'not-allowed') {
+      if (status) status.textContent = 'Mic access denied — allow microphone in browser settings.';
+      _rambleActive = false;
+      resetRambleButton();
+    }
+  };
+
+  _rambleRecognition.onend = () => {
+    if (_rambleActive) {
+      // Browser cut us off mid-ramble (common continuous-mode limit) — resume seamlessly
+      try { _rambleRecognition.start(); } catch(e) { /* already starting */ }
+    } else {
+      // User tapped stop — now do the one AI call to sort the transcript into fields
+      parseRambleTranscript();
+    }
+  };
+
+  try { _rambleRecognition.start(); } catch(e) { if (status) status.textContent = 'Could not start listening: ' + e.message; }
+}
+
+function stopRambleRecording() {
+  _rambleActive = false;
+  const status = document.getElementById('ramble-status');
+  if (status) status.textContent = 'Sorting into fields...';
+  resetRambleButton();
+  if (_rambleRecognition) { try { _rambleRecognition.stop(); } catch(e) {} }
+}
+
+function resetRambleButton() {
+  const btn = document.getElementById('ramble-btn');
+  if (btn) { btn.textContent = '🎙 START TALKING'; btn.style.background = 'var(--gold-faint)'; btn.style.borderColor = 'var(--gold)'; btn.style.color = 'var(--gold)'; }
+}
+
+async function parseRambleTranscript() {
+  const status = document.getElementById('ramble-status');
+  const raw = _rambleTranscript.trim();
+  if (!raw) { if (status) status.textContent = "Didn't catch anything — tap and try again."; return; }
+  if (!HAS_API_KEY) {
+    if (status) { status.textContent = 'No AI configured — transcript captured above, fill fields in by hand.'; status.style.color = 'var(--chalk-faint)'; }
+    return;
+  }
+
+  const todayISO = new Date().toISOString().split('T')[0];
+  const parseSystemPrompt = `You convert a rambling, unstructured spoken BJJ training recap into a strict JSON object. Output ONLY raw JSON — no markdown fences, no prose before or after.
+
+Fields (use "" for anything not mentioned, never invent content):
+{
+  "date": "YYYY-MM-DD or empty string if not mentioned (today is ${todayISO}; resolve relative terms like 'today' or 'yesterday' against that)",
+  "entry_type": "one of: class, drill, technique — best guess from context, default class",
+  "gi": "gi or nogi — best guess from context, default gi",
+  "lesson": "overall focus/theme of the session, if mentioned",
+  "standup": "any takedown/standup notes, class entries only",
+  "technique": "specific technique(s) drilled or rolled, described",
+  "rolls": "notes about live rolling — what happened, partners, positions",
+  "drillwork": "home drill notes, only if this was a solo/home drill session",
+  "pearls": "any single stand-out insight or 'pearl' worth remembering, one line",
+  "fundamentals": "any core/fundamental principle mentioned",
+  "notes": "anything else relevant that doesn't fit the fields above"
+}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': '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', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 700,
+        system: parseSystemPrompt,
+        messages: [{ role: 'user', content: raw }]
+      })
+    });
+    if (!response.ok) throw new Error('API returned ' + response.status);
+    const data = await response.json();
+    let text = (data.content?.[0]?.text || '').trim();
+    text = text.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(text);
+
+    // Populate the form — user reviews/edits before tapping SAVE ENTRY themselves
+    setJType(['class','drill','technique'].includes(parsed.entry_type) ? parsed.entry_type : 'class');
+    if (parsed.gi === 'nogi') setGi('nogi'); else setGi('gi');
+    if (parsed.date) { const d = document.getElementById('j-date'); if (d) d.value = parsed.date; }
+    const setVal = (id, val) => { if (!val) return; const el = document.getElementById(id); if (el) el.value = val; };
+    setVal('j-lesson', parsed.lesson);
+    setVal('j-standup', parsed.standup);
+    setVal('j-technique', parsed.technique);
+    setVal('j-rolls', parsed.rolls);
+    setVal('j-drillwork', parsed.drillwork);
+    setVal('j-pearls', parsed.pearls);
+    setVal('j-fundamentals', parsed.fundamentals);
+    setVal('j-notes', parsed.notes);
+
+    if (status) { status.textContent = '✓ Sorted into the fields below — review, edit anything, then tap SAVE ENTRY.'; status.style.color = 'var(--green)'; }
+  } catch(e) {
+    console.error('Ramble parse failed:', e);
+    if (status) { status.textContent = 'Could not auto-sort — your words are captured above, fill fields in by hand.'; status.style.color = '#e87070'; }
+  }
+}
+
 
 function gv(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
 
@@ -6746,20 +6986,68 @@ function clearJForm() {
   const tdbtn = document.getElementById('btn-new-takedown'); if (tdbtn) tdbtn.textContent = '+ NEW TAKEDOWN';
 }
 
+// Parses a date string into a sortable epoch value, tolerant of the mixed
+// formats that show up from legacy imports (ISO "2026-09-15", US-slash
+// "9/15/2026", or written-out "September 15, 2026"). Falls back to 0
+// (sorts to the bottom) rather than NaN so one bad row can't corrupt the
+// whole sort.
+function parseEntryDate(dateStr) {
+  if (!dateStr) return 0;
+  const s = String(dateStr).trim();
+  // ISO: YYYY-MM-DD
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]).getTime();
+  // US slash: M/D/YYYY or M/D/YY
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m) {
+    let yr = +m[3]; if (yr < 100) yr += 2000;
+    return new Date(yr, +m[1]-1, +m[2]).getTime();
+  }
+  // Fallback: let the Date constructor try (handles "September 15, 2026" etc.)
+  const t = new Date(s).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
+// Renders whatever's in the local IndexedDB backup, with a banner
+// explaining it's cached data. Used when we can't reach Sheets —
+// no sign-in yet, offline, or a failed fetch — so recent entries
+// are still viewable instead of just showing an error.
+async function renderFromIDBCache(list, bannerHtml) {
+  const cached = await loadFromIDB();
+  if (!cached.length) return false; // nothing to fall back to
+  let entries = cached.slice()
+    .sort((a, b) => parseEntryDate(b.date) - parseEntryDate(a.date));
+  if (_jFilter !== 'all') entries = entries.filter(e => e.entry_type === _jFilter);
+  list.innerHTML = bannerHtml + entries.map(renderJEntry).join('');
+  window._allJEntries = entries;
+  if (_jView !== 'list') buildFlashcards();
+  buildClassPrep();
+  return true;
+}
+
 // ── Load Entries ──
 async function loadJEntries() {
   const list = document.getElementById('j-entries-list');
   const loading = document.getElementById('j-loading');
   if (!list) return;
 
-  // Show auth button if not logged in
+  // Show auth button if not logged in — but first try the local cache
+  // so recent entries are still visible offline / before sign-in
   if (!_gsToken || Date.now() >= _gsTokenExpiry - 60000) {
     if (loading) loading.style.display = 'none';
-    list.innerHTML = `
-      <div style="text-align:center;padding:30px 20px;">
-        <div style="font-family:'Bebas Neue',cursive;font-size:16px;color:var(--chalk-faint);margin-bottom:16px;">Sign in to load your journal entries</div>
-        <button onclick="signInAndLoad()" style="padding:12px 24px;border-radius:8px;border:none;background:var(--gold);color:#111;font-family:'Bebas Neue',cursive;font-size:18px;letter-spacing:2px;cursor:pointer;">SIGN IN WITH GOOGLE</button>
-      </div>`;
+    const signInBtn = `<button onclick="signInAndLoad()" style="padding:12px 24px;border-radius:8px;border:none;background:var(--gold);color:#111;font-family:'Bebas Neue',cursive;font-size:18px;letter-spacing:2px;cursor:pointer;">SIGN IN WITH GOOGLE</button>`;
+    const shownCached = await renderFromIDBCache(list, `
+      <div style="text-align:center;padding:10px 14px;margin-bottom:14px;background:var(--gold-faint);border:1px solid var(--gold-line);border-radius:8px;">
+        <div style="font-family:'Bebas Neue',cursive;font-size:13px;letter-spacing:1px;color:var(--gold);margin-bottom:8px;">SHOWING CACHED ENTRIES — SIGN IN TO SYNC LATEST</div>
+        ${signInBtn}
+      </div>`);
+    if (!shownCached) {
+      list.innerHTML = `
+        <div style="text-align:center;padding:30px 20px;">
+          <div style="font-family:'Bebas Neue',cursive;font-size:16px;color:var(--chalk-faint);margin-bottom:16px;">Sign in to load your journal entries</div>
+          ${signInBtn}
+        </div>`;
+    }
     return;
   }
 
@@ -6787,7 +7075,7 @@ async function loadJEntries() {
       notes: r[11]||'', created_at: r[12]||'',
       position: r[13]||'', technique_label: r[14]||'', takedown_label: r[15]||''
     })).filter(e => e.date) // skip empty rows
-      .sort((a, b) => b.date.localeCompare(a.date)); // newest first always
+      .sort((a, b) => parseEntryDate(b.date) - parseEntryDate(a.date)); // newest first, tolerant of mixed date formats
 
     if (_jFilter !== 'all') entries = entries.filter(e => e.entry_type === _jFilter);
 
@@ -6796,6 +7084,9 @@ async function loadJEntries() {
     // Store globally for flashcard engine
     window._allJEntries = entries;
     if (_jView !== 'list') buildFlashcards();
+
+    // Rebuild the standardized class-prep briefing now that data changed
+    buildClassPrep();
 
     // Store for AI Sensei
     window.sheetsJournalContent = entries.slice(0,20).map(e =>
@@ -6811,10 +7102,17 @@ async function loadJEntries() {
 
   } catch(e) {
     if (loading) loading.style.display = 'none';
-    list.innerHTML = `<div style="text-align:center;padding:20px;">
-      <p style="color:#e87070;font-family:'Bebas Neue',cursive;font-size:14px;margin-bottom:12px;">Could not load entries. Sign in again?</p>
-      <button onclick="signInAndLoad()" style="padding:10px 20px;border-radius:6px;border:none;background:var(--gold);color:#111;font-family:'Bebas Neue',cursive;font-size:16px;cursor:pointer;">SIGN IN WITH GOOGLE</button>
-    </div>`;
+    const shownCached = await renderFromIDBCache(list, `
+      <div style="text-align:center;padding:10px 14px;margin-bottom:14px;background:rgba(232,112,112,0.1);border:1px solid rgba(232,112,112,0.35);border-radius:8px;">
+        <div style="font-family:'Bebas Neue',cursive;font-size:13px;letter-spacing:1px;color:#e87070;margin-bottom:8px;">COULD NOT REACH SHEETS — SHOWING CACHED ENTRIES</div>
+        <button onclick="signInAndLoad()" style="padding:8px 18px;border-radius:6px;border:none;background:var(--gold);color:#111;font-family:'Bebas Neue',cursive;font-size:15px;cursor:pointer;">RETRY / SIGN IN</button>
+      </div>`);
+    if (!shownCached) {
+      list.innerHTML = `<div style="text-align:center;padding:20px;">
+        <p style="color:#e87070;font-family:'Bebas Neue',cursive;font-size:14px;margin-bottom:12px;">Could not load entries. Sign in again?</p>
+        <button onclick="signInAndLoad()" style="padding:10px 20px;border-radius:6px;border:none;background:var(--gold);color:#111;font-family:'Bebas Neue',cursive;font-size:16px;cursor:pointer;">SIGN IN WITH GOOGLE</button>
+      </div>`;
+    }
     console.error('Load error:', e);
   }
 }
@@ -6828,23 +7126,26 @@ async function signInAndLoad() {
   }
 }
 
-function renderJEntry(e) {
+function renderJEntry(e, idx) {
   const isClass = e.entry_type === 'class';
   const dateStr = e.date ? new Date(e.date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : '';
   const typeLabel = isClass ? ('CLASS' + (e.gi ? ' · ' + e.gi.toUpperCase() : '')) : 'HOME DRILL';
-  const field = (label, val) => val ? `<div style="margin-bottom:8px;"><div style="font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:2px;color:var(--gold);opacity:0.8;margin-bottom:2px;">${label}</div><div style="font-size:15px;color:var(--chalk);white-space:pre-wrap;line-height:1.5;">${val}</div></div>` : '';
+  const field = (label, val) => val ? `<div style="margin-bottom:8px;"><div style="font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:2px;color:var(--ink-accent);opacity:0.85;margin-bottom:2px;">${label}</div><div style="font-size:15px;color:var(--ink);white-space:pre-wrap;line-height:1.5;">${val}</div></div>` : '';
   const safeId = (e.id||'').replace(/'/g, "\\'");
   const safeDate = (e.date||'').replace(/'/g, "\\'");
-  return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden;">
-    <div style="background:var(--gold-faint);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-      <div style="font-family:'Bebas Neue',cursive;font-size:15px;color:var(--chalk);">${dateStr}</div>
+  // Each entry sits at a slight natural angle, like a real stack of loose pages —
+  // deterministic per index so it doesn't jitter on re-render.
+  const tilt = [-0.6, 0.4, -0.3, 0.6, -0.4][ (idx||0) % 5 ];
+  return `<div class="notebook-page" style="margin-bottom:22px;padding:18px 18px 18px 40px;transform:rotate(${tilt}deg);min-height:0;max-height:none;overflow:visible;">    <div class="notebook-spine"><div class="notebook-hole" style="top:16%;"></div><div class="notebook-hole" style="top:50%;"></div><div class="notebook-hole" style="top:84%;"></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--paper-line);">
+      <div style="font-family:'Bebas Neue',cursive;font-size:16px;color:var(--ink);">${dateStr}</div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:1px;color:var(--gold);background:rgba(240,192,80,0.15);padding:3px 10px;border-radius:4px;">${typeLabel}</span>
-        <button onclick="editJEntry('${safeId}')" style="padding:3px 10px;border-radius:4px;border:1px solid rgba(100,180,255,0.4);background:transparent;color:#64b4ff;font-family:'Bebas Neue',cursive;font-size:11px;cursor:pointer;letter-spacing:1px;">EDIT</button>
-        <button onclick="deleteJEntry('${safeId}','${safeDate}')" style="padding:3px 10px;border-radius:4px;border:1px solid rgba(232,112,112,0.4);background:transparent;color:#e87070;font-family:'Bebas Neue',cursive;font-size:11px;cursor:pointer;letter-spacing:1px;">DELETE</button>
+        <span style="font-family:'Bebas Neue',cursive;font-size:12px;letter-spacing:1px;color:var(--ink-accent);background:rgba(28,58,99,0.08);padding:3px 10px;border-radius:4px;">${typeLabel}</span>
+        <button onclick="editJEntry('${safeId}')" style="padding:3px 10px;border-radius:4px;border:1px solid rgba(28,58,99,0.35);background:transparent;color:var(--ink-accent);font-family:'Bebas Neue',cursive;font-size:11px;cursor:pointer;letter-spacing:1px;">EDIT</button>
+        <button onclick="deleteJEntry('${safeId}','${safeDate}')" style="padding:3px 10px;border-radius:4px;border:1px solid rgba(138,43,43,0.4);background:transparent;color:#8a2b2b;font-family:'Bebas Neue',cursive;font-size:11px;cursor:pointer;letter-spacing:1px;">DELETE</button>
       </div>
     </div>
-    <div style="padding:14px;">
+    <div>
       ${field('LESSON / FOCUS', e.lesson)}
       ${isClass ? field('STANDUP', e.standup) : ''}
       ${isClass ? field('TECHNIQUE', e.technique) : ''}
@@ -7152,45 +7453,45 @@ function renderFlashcard() {
   if (_fcMode === 'fundamentals') {
     const total = _fcFundamentals.length;
     if (!total) {
-      card.innerHTML = '<div style="color:var(--chalk-faint);font-family:\'Bebas Neue\',cursive;font-size:18px;text-align:center;padding:40px 20px;">No fundamentals yet.<br><br>Add them through journal entries using the Fundamentals field.<br><br>The 32 Principles can be entered as journal entries with just the Fundamentals field filled in.</div>';
+      card.innerHTML = '<div style="color:var(--ink-faint);font-family:\'Bebas Neue\',cursive;font-size:18px;text-align:center;padding:40px 20px;">No fundamentals yet.<br><br>Add them through journal entries using the Fundamentals field.<br><br>The 32 Principles can be entered as journal entries with just the Fundamentals field filled in.</div>';
       return;
     }
     const f = _fcFundamentals[_fcIndex];
     if (counter) counter.textContent = `${_fcIndex + 1} / ${total}`;
     card.innerHTML = `
       <div style="text-align:center;margin-bottom:16px;">
-        <span style="font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2px;color:#00aaaa;background:rgba(0,170,170,0.1);padding:3px 12px;border-radius:4px;">FUNDAMENTAL ${_fcIndex + 1} OF ${total}</span>
-        ${f.date ? `<div style="font-family:'Bebas Neue',cursive;font-size:12px;color:var(--chalk-faint);margin-top:6px;letter-spacing:1px;">${f.date}</div>` : ''}
+        <span style="font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2px;color:var(--ink-accent);background:rgba(28,58,99,0.08);padding:3px 12px;border-radius:4px;">FUNDAMENTAL ${_fcIndex + 1} OF ${total}</span>
+        ${f.date ? `<div style="font-family:'Bebas Neue',cursive;font-size:12px;color:var(--ink-faint);margin-top:6px;letter-spacing:1px;">${f.date}</div>` : ''}
       </div>
-      <div style="font-family:'Oswald',sans-serif;font-size:20px;color:var(--chalk);line-height:1.6;text-align:center;padding:20px 10px;min-height:200px;display:flex;align-items:center;justify-content:center;">
+      <div style="font-family:'Oswald',sans-serif;font-size:20px;color:var(--ink);line-height:1.6;text-align:center;padding:20px 10px;min-height:200px;display:flex;align-items:center;justify-content:center;">
         ${f.text}
       </div>`;
   } else if (_fcMode === 'pearls') {
     const total = _fcPearls.length;
-    if (!total) { card.innerHTML = '<div style="color:var(--chalk-faint);font-family:\'Bebas Neue\',cursive;font-size:18px;text-align:center;padding:40px 0;">No pearls found.<br>Add some journal entries with pearls first.</div>'; return; }
+    if (!total) { card.innerHTML = '<div style="color:var(--ink-faint);font-family:\'Bebas Neue\',cursive;font-size:18px;text-align:center;padding:40px 0;">No pearls found.<br>Add some journal entries with pearls first.</div>'; return; }
     const p = _fcPearls[_fcIndex];
     if (counter) counter.textContent = `${_fcIndex + 1} / ${total}`;
     card.innerHTML = `
       <div style="text-align:center;margin-bottom:16px;">
-        <span style="font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2px;color:var(--gold);background:var(--gold-faint);padding:3px 12px;border-radius:4px;">PEARL ${_fcIndex + 1} OF ${total}</span>
-        ${p.date ? `<div style="font-family:'Bebas Neue',cursive;font-size:12px;color:var(--chalk-faint);margin-top:6px;letter-spacing:1px;">${p.date}${p.gi ? ' · ' + p.gi.toUpperCase() : ''}</div>` : ''}
+        <span style="font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2px;color:#8a2b2b;background:rgba(138,43,43,0.08);padding:3px 12px;border-radius:4px;">PEARL ${_fcIndex + 1} OF ${total}</span>
+        ${p.date ? `<div style="font-family:'Bebas Neue',cursive;font-size:12px;color:var(--ink-faint);margin-top:6px;letter-spacing:1px;">${p.date}${p.gi ? ' · ' + p.gi.toUpperCase() : ''}</div>` : ''}
       </div>
-      <div style="font-family:'Oswald',sans-serif;font-size:20px;color:var(--chalk);line-height:1.6;text-align:center;padding:20px 10px;min-height:200px;display:flex;align-items:center;justify-content:center;">
+      <div style="font-family:'Oswald',sans-serif;font-size:20px;color:var(--ink);line-height:1.6;text-align:center;padding:20px 10px;min-height:200px;display:flex;align-items:center;justify-content:center;">
         ${p.text}
       </div>`;
   } else {
     const total = _fcEntries.length;
-    if (!total) { card.innerHTML = '<div style="color:var(--chalk-faint);font-family:\'Bebas Neue\',cursive;font-size:18px;text-align:center;padding:40px 0;">No entries yet.</div>'; return; }
+    if (!total) { card.innerHTML = '<div style="color:var(--ink-faint);font-family:\'Bebas Neue\',cursive;font-size:18px;text-align:center;padding:40px 0;">No entries yet.</div>'; return; }
     const e = _fcEntries[_fcIndex];
     if (counter) counter.textContent = `${_fcIndex + 1} / ${total}`;
     const isClass = e.entry_type === 'class';
     const dateStr = e.date ? new Date(e.date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : '';
     const typeLabel = isClass ? ('CLASS' + (e.gi ? ' · ' + e.gi.toUpperCase() : '')) : 'HOME DRILL';
-    const field = (label, val) => val ? `<div style="margin-bottom:10px;"><div style="font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2px;color:var(--gold);margin-bottom:3px;">${label}</div><div style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--chalk);white-space:pre-wrap;line-height:1.5;">${val}</div></div>` : '';
+    const field = (label, val) => val ? `<div style="margin-bottom:10px;"><div style="font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:2px;color:var(--ink-accent);margin-bottom:3px;">${label}</div><div style="font-family:'Oswald',sans-serif;font-size:14px;color:var(--ink);white-space:pre-wrap;line-height:1.5;">${val}</div></div>` : '';
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:6px;">
-        <div style="font-family:'Bebas Neue',cursive;font-size:18px;color:var(--chalk);">${dateStr}</div>
-        <span style="font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:1px;color:var(--gold);background:var(--gold-faint);padding:3px 10px;border-radius:4px;">${typeLabel}</span>
+        <div style="font-family:'Bebas Neue',cursive;font-size:18px;color:var(--ink);">${dateStr}</div>
+        <span style="font-family:'Bebas Neue',cursive;font-size:11px;letter-spacing:1px;color:var(--ink-accent);background:rgba(28,58,99,0.08);padding:3px 10px;border-radius:4px;">${typeLabel}</span>
       </div>
       ${field('LESSON / FOCUS', e.lesson)}
       ${isClass ? field('STANDUP', e.standup) : ''}
@@ -7212,19 +7513,25 @@ function flipCard(dir) {
   // Play sound
   if (_flipSound) _flipSound();
 
-  // Animate
-  card.style.transform = dir > 0 ? 'translateX(-12px) rotate(-1.5deg)' : 'translateX(12px) rotate(1.5deg)';
-  card.style.opacity = '0.3';
+  // Page turns away, pivoting from the spine (left edge), like a real page
+  card.style.transition = 'transform 0.2s ease-in, opacity 0.2s ease-in';
+  card.style.transformOrigin = 'left center';
+  card.style.transform = dir > 0 ? 'rotateY(-92deg)' : 'rotateY(92deg)';
+  card.style.opacity = '0.2';
 
   setTimeout(() => {
     _fcIndex = (_fcIndex + dir + total) % total;
     renderFlashcard();
-    card.style.transform = dir > 0 ? 'translateX(8px) rotate(0.5deg)' : 'translateX(-8px) rotate(-0.5deg)';
+    // Snap to the far edge-on angle (no transition), then ease back to flat —
+    // the new page arriving from the opposite side of the turn
+    card.style.transition = 'none';
+    card.style.transform = dir > 0 ? 'rotateY(92deg)' : 'rotateY(-92deg)';
+    // Force reflow so the transition below actually animates from this angle
+    void card.offsetWidth;
+    card.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+    card.style.transform = 'rotateY(0deg)';
     card.style.opacity = '1';
-    setTimeout(() => {
-      card.style.transform = '';
-    }, 120);
-  }, 150);
+  }, 200);
 }
 
 function startFlip(dir) {
@@ -7246,53 +7553,6 @@ function stopFlip() {
     if (Math.abs(diff) > 50) flipCard(diff > 0 ? 1 : -1);
   }, { passive: true });
 })();
-// ═══════════════════════════════════════════
-// GITHUB PUBLISH (Developer only — remove before sharing)
-// ═══════════════════════════════════════════
-const GH_OWNER = 'cscourtney';
-const GH_REPO = 'The-Dojo';
-const GH_FILE = 'The_Dojo_v32.html';
-
-async function publishToGitHub() {
-  const token = document.getElementById('gh-token-input')?.value.trim();
-  const msgEl = document.getElementById('gh-publish-msg');
-  if (!token) { if (msgEl) msgEl.textContent = 'Enter your GitHub token first.'; return; }
-  if (msgEl) { msgEl.textContent = 'Getting current file SHA...'; msgEl.style.color = 'rgba(255,255,255,0.4)'; }
-
-  try {
-    // Step 1: Get current file SHA
-    const infoRes = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`, {
-      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' }
-    });
-    if (!infoRes.ok) throw new Error('Could not get file info: ' + infoRes.status);
-    const info = await infoRes.json();
-    const sha = info.sha;
-
-    if (msgEl) msgEl.textContent = 'Uploading file...';
-
-    // Step 2: Get current page HTML as base64
-    const html = document.documentElement.outerHTML;
-    const b64 = btoa(unescape(encodeURIComponent(html)));
-
-    // Step 3: Push to GitHub
-    const pushRes = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`, {
-      method: 'PUT',
-      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: 'Dojo update ' + new Date().toISOString().split('T')[0],
-        content: b64,
-        sha: sha
-      })
-    });
-    if (!pushRes.ok) throw new Error('Push failed: ' + pushRes.status + ' ' + await pushRes.text());
-    if (msgEl) { msgEl.textContent = 'Published ✓ — live in ~60 seconds'; msgEl.style.color = '#7ed87f'; }
-    setTimeout(() => { if (msgEl) { msgEl.textContent = ''; msgEl.style.color = 'rgba(255,255,255,0.3)'; } }, 5000);
-  } catch(e) {
-    if (msgEl) { msgEl.textContent = 'Failed: ' + e.message.slice(0,80); msgEl.style.color = '#e87070'; }
-    console.error('GitHub publish error:', e);
-  }
-}
-
 // ═══════════════════════════════════════════
 // VOICE PICKER
 // ═══════════════════════════════════════════
