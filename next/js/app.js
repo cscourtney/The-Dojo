@@ -1,5 +1,5 @@
 import {read,write} from './store.js';
-import {connect,disconnect,accessToken,readTab,syncEntry} from './sheets.js';
+import {connect,disconnect,accessToken,ensureAccess,readTab,syncEntry} from './sheets.js?v=2';
 import {Recording,restoredRecording,discardRecording} from './recording.js';
 const $ = id => document.getElementById(id);
 const fieldDefinitions = [
@@ -12,7 +12,7 @@ let draft = {id:crypto.randomUUID(), date:today(),entry_type:'class',gi:'gi',tra
 let queue = [], busy = false, audioUrl, storageFailed = false;
 const logs = [];
 function status(message,error=false) {
- $('status').hidden=false; $('status').textContent = message; $('status').classList.toggle('error',error);
+ for (const id of ['status','review-status']) { $(id).hidden=false; $(id).textContent=message; $(id).classList.toggle('error',error); }
  if (error) logs.push({at:new Date().toISOString(),message});
  if (logs.length>30) logs.shift();
 }
@@ -38,8 +38,8 @@ function persistDraft() {
 function changed() { draft.fields=collect(); draft.transcript=$('transcript').value; $('original').value=draft.transcript; persistDraft().catch(()=>{}); }
 $('entry-form').addEventListener('input',changed);
 $('transcript').addEventListener('input',changed);
-function review() { fillFields(); $('review').hidden=false;  $('review').scrollIntoView({behavior:'smooth',block:'start'}); }
-function controls() { for (const id of ['organize','save','connect','refresh','new-draft','disconnect']) $(id).disabled = busy || recorder.active || recorder.finishing; for(const input of $('entry-form').querySelectorAll('input, textarea, select')) input.disabled=busy; $('record').disabled=busy || recorder.finishing; $('transcript').readOnly=recorder.active; $('manual').disabled=busy||recorder.active||recorder.finishing; }
+function review() { draft.reviewOpen=true; persistDraft().catch(()=>{}); fillFields(); $('review').hidden=false;  $('review').scrollIntoView({behavior:'smooth',block:'start'}); }
+function controls() { for (const id of ['organize','save','connect','refresh','new-draft','disconnect']) $(id).disabled = busy || recorder.active || recorder.finishing; for(const input of $('entry-form').querySelectorAll('input, textarea, select')) input.disabled=busy; $('record').disabled=busy || recorder.finishing; $('transcript').readOnly=recorder.active||busy; $('organize').textContent=busy?'Please wait…':'Organize my recap'; $('manual').disabled=busy||recorder.active||recorder.finishing; }
 function showAudio(blob) {
  if (!blob?.size) return;
  if (audioUrl) URL.revokeObjectURL(audioUrl);
@@ -59,19 +59,20 @@ $('record').onclick = async () => {
  busy=false;controls();
 };
 window.addEventListener('beforeunload',event=>{if(recorder.active){event.preventDefault();event.returnValue='';}});
-$('manual').onclick=()=>{changed();review();};
+$('manual').onclick=()=>{changed();review();status('Manual entry: fill in the session details below. AI has not organized this recap.');};
 $('organize').onclick=async()=>{
  const transcript=$('transcript').value.trim(); if(!transcript)return status('Add your recap first.',true);
  const url=$('worker-url').value.trim();
  if(!url)return status('AI is not connected yet. Add the new Worker URL under Connection settings, or fill in the details yourself.',true);
- busy=true;controls();status('Organizing your recap. Your original words are retained.');
+ changed();busy=true;controls();status('Organizing your recap. Your original words are retained.');
  try {
+  await ensureAccess();
   await persistDraft();
   const endpoint=new URL('/parse-workout',url);if(endpoint.protocol!=='https:' && !(['localhost','127.0.0.1'].includes(endpoint.hostname)&&endpoint.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');
   const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken()}`},body:JSON.stringify({transcript,today:today()}),signal:AbortSignal.timeout(60000)});
   const result=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(`AI HTTP ${response.status}: ${result.error || 'Request failed. Retry or fill in the fields yourself.'}`);
-  if(!result.entry || typeof result.entry!=='object')throw new Error('AI response was incomplete. Your recap is safe.');
+  if(!result.entry || Array.isArray(result.entry) || typeof result.entry!=='object' || !['lesson','technique','rolls','standup','drillwork','pearls','notes'].some(key=>typeof result.entry[key]==='string'&&result.entry[key].trim()))throw new Error('AI returned no session details. Your recap is safe; retry or enter the details manually.');
   // The server validates this schema; accept only known strings in the browser as well.
   const fields={};for(const [key] of fieldDefinitions)if(typeof result.entry[key]==='string')fields[key]=result.entry[key];
   draft.fields={...draft.fields,...fields};draft.transcript=transcript;await persistDraft();review();status('Ready to review. Nothing has been sent to your Sheet yet.');
@@ -89,7 +90,7 @@ async function flushQueue(){
 }
 $('connect').onclick=async()=>{busy=true;controls();try{await connect();$('connection').textContent='Connected to Google. Your Sheet remains the source of truth.';$('connect').textContent='Reconnect Google';await flushQueue();await loadRecent();status('Connected. Your training history is up to date.');}catch(error){status(error.message,true);}finally{busy=false;controls();}};
 $('disconnect').onclick=()=>{disconnect();$('connection').textContent='Disconnected. Local drafts and cached history remain on this device.';$('connect').textContent='Connect Google Sheet';status('Google session disconnected on this page.');};
-$('refresh').onclick=async()=>{busy=true;controls();try{await flushQueue();await loadRecent();status('Your Sheet is up to date.');}catch(error){status(error.message,true);}finally{busy=false;controls();}};
+$('refresh').onclick=async()=>{busy=true;controls();try{await ensureAccess();await flushQueue();await loadRecent();status('Your Sheet is up to date.');}catch(error){status(error.message,true);}finally{busy=false;controls();}};
 $('entry-form').onsubmit=async event=>{
  event.preventDefault();if(busy)return;
  const fields=collect();if(!fields.date || !['lesson','technique','rolls','standup','drillwork','pearls','notes'].some(key=>fields[key]))return status('Add a date and at least one session detail.',true);
@@ -110,6 +111,6 @@ $('save-settings').onclick=async()=>{try{const value=$('worker-url').value.trim(
 $('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.1',time:new Date().toISOString(),userAgent:navigator.userAgent,recordingSupport:!!window.MediaRecorder,speechSupport:!!(window.SpeechRecognition||window.webkitSpeechRecognition),pendingSaves:queue.length,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens, transcripts, or journal content are included.');}catch{status(report);}};
 window.addEventListener('online',async()=>{if(busy||recorder.active||!queue.length)return;busy=true;controls();try{await flushQueue();status('Pending entries were synced to Google Sheets.');}catch(error){status(`Pending sync: ${error.message}`,true);}finally{busy=false;controls();}});
 try{
- const saved=await read('draft');if(saved)draft=saved;queue=await read('queue')||[];$('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;fillFields();if(Object.keys(draft.fields).length){$('review').hidden=false;}
+ const saved=await read('draft');if(saved)draft=saved;queue=await read('queue')||[];$('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;fillFields();if(draft.reviewOpen || Object.entries(draft.fields).some(([key,value])=>!['date','entry_type','gi'].includes(key)&&typeof value==='string'&&value.trim())){$('review').hidden=false;}
  const mirror=await read('mirror-data');if(mirror)displayRecent(mirror,true);showAudio(await restoredRecording());if(queue.length)status(`${queue.length} pending save(s) retained on this device. Connect Google to finish syncing.`);
 }catch(error){storageFailed=true;status('Local draft storage is unavailable. Keep this page open and copy your recap before leaving.',true);}

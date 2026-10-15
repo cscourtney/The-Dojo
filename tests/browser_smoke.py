@@ -9,7 +9,7 @@ def main():
  with sync_playwright() as p:
   browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
   context=browser.new_context(viewport={'width':1024,'height':1366})
-  context.add_init_script("window.google={accounts:{oauth2:{initTokenClient:config=>({requestAccessToken:()=>config.callback({access_token:'test-only',expires_in:3600})})}}};")
+  context.add_init_script("window.authPrompts=[];window.google={accounts:{oauth2:{initTokenClient:config=>({requestAccessToken:options=>{window.authPrompts.push(options.prompt);config.callback({access_token:'test-only',expires_in:3600});}})}}};")
   tables={'data':[list(reversed(HEADERS))], 'techniques':[['description','id','label','position','map_node','date','gi','created_at']], 'pearls':[['pearl','entry_id','date','gi','created_at']]}
   fail={'pearl':True}; writes=[]
   def sheet(route):
@@ -42,7 +42,15 @@ def main():
   page.locator('.settings summary').click();page.locator('#worker-url').fill('https://dojo-test.workers.dev');page.locator('#save-settings').click()
   parsed={key:'' for key in HEADERS if key not in ['id','created_at']};parsed.update(date='2026-10-14',entry_type='class',gi='nogi',lesson='Guard retention')
   context.route('https://dojo-test.workers.dev/parse-workout',lambda r:r.fulfill(json={'entry':parsed}))
+  page.locator('#disconnect').click()
   page.locator('#organize').click();expect(page.locator('#lesson')).to_have_value('Guard retention');assert len(tables['data'])==2
+  assert page.evaluate('authPrompts.at(-1)')==''
+  expect(page.locator('#review-status')).to_contain_text('Ready to review')
+  # An empty successful response must not masquerade as an organized session.
+  context.unroute('https://dojo-test.workers.dev/parse-workout')
+  context.route('https://dojo-test.workers.dev/parse-workout',lambda r:r.fulfill(json={'entry':{}}))
+  page.locator('#organize').click();expect(page.locator('#status')).to_contain_text('AI returned no session details')
+  expect(page.locator('#lesson')).to_have_value('Guard retention')
   # Missing a required header blocks every write, rather than silently dropping data.
   tables['data'][0].remove('map_node');before=len(writes)
   page.locator('#save').click();expect(page.locator('#status')).to_contain_text('missing headers map_node');assert len(writes)==before

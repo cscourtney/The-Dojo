@@ -6,7 +6,7 @@ export function accessToken() {
   return token;
 }
 export function disconnect() { token = ''; expires = 0; }
-export async function connect() {
+export async function connect({chooseAccount=true} = {}) {
   if (!window.google?.accounts?.oauth2) await new Promise((resolve, reject) => {
     const script = document.createElement('script'); script.src = 'https://accounts.google.com/gsi/client';
     const timeout = setTimeout(() => reject(new Error('Google sign-in timed out. Try again.')), 20000);
@@ -33,8 +33,13 @@ export async function connect() {
       },
       error_callback: () => finish(new Error('Google sign-in was closed or blocked. Allow the popup and retry.'))
     });
-    client.requestAccessToken({prompt: 'select_account'});
+    client.requestAccessToken({prompt: chooseAccount ? 'select_account' : ''});
   });
+}
+// Invoke from a user action so Google's popup is permitted. Never sign in on page load.
+export async function ensureAccess() {
+  try { return accessToken(); }
+  catch { await connect({chooseAccount:false}); return accessToken(); }
 }
 async function request(path, options = {}) {
   let response;
