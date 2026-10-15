@@ -1,3 +1,4 @@
+import {sameTechnique} from './journal.js?v=3';
 export const SHEET_ID = '11qPTV7nS28ZdK0Yd1kTAZVMot30lLA9024N1JeYlgwc';
 export const CLIENT_ID = '766609056854-bdk65cprg46q2sni85pr2kges9u18mfl.apps.googleusercontent.com';
 let token = '', expires = 0;
@@ -82,10 +83,10 @@ export async function syncEntry(entry) {
   const dataFields = ['id','date','entry_type','gi','lesson','standup','technique','rolls','drillwork','pearls','fundamentals','notes','created_at','position','technique_label','takedown_label','map_node'];
   requireHeaders('data', snapshots.data, dataFields);
   const techniques = [];
-  if (entry.technique_label && entry.technique) techniques.push({label:entry.technique_label, position:entry.position, map_node:entry.map_node, description:entry.technique, date:entry.date, gi:entry.gi, id:entry.id+'_tech', created_at:entry.created_at});
-  if (entry.takedown_label && entry.standup) techniques.push({label:entry.takedown_label, position:'takedowns', map_node:'takedowns', description:entry.standup, date:entry.date, gi:entry.gi, id:entry.id+'_td', created_at:entry.created_at});
+  if (entry._createTechnique === true && entry.technique_label && entry.technique) techniques.push({label:entry.technique_label, position:entry.position, map_node:entry.map_node, description:entry.technique, date:entry.date, gi:entry.gi, id:entry.id+'_tech', created_at:entry.created_at});
+  if (entry._createTakedown === true && entry.takedown_label && entry.standup) techniques.push({label:entry.takedown_label, position:'takedowns', map_node:entry.map_node||'', description:entry.standup, date:entry.date, gi:entry.gi, id:entry.id+'_td', created_at:entry.created_at});
   const pearls = [...new Set((entry.pearls || '').split('\n').map(s => s.replace(/^\d+[.)]\s*/, '').trim()).filter(Boolean))];
-  if (techniques.length) {
+  if (techniques.length || entry.technique_label || entry.takedown_label) {
     snapshots.techniques = await readTab('techniques');
     requireHeaders('techniques', snapshots.techniques, ['label','position','map_node','description','date','gi','id','created_at']);
   }
@@ -93,10 +94,12 @@ export async function syncEntry(entry) {
     snapshots.pearls = await readTab('pearls');
     requireHeaders('pearls', snapshots.pearls, ['date','gi','pearl','entry_id','created_at']);
   }
+  if (entry.technique_label && entry._createTechnique !== true && !snapshots.techniques.rows.some(row => sameTechnique(row,{label:entry.technique_label,position:entry.position}))) throw new Error('The linked technique is no longer in the Sheet. Refresh and choose an existing technique, or explicitly add a new one.');
+  if (entry.takedown_label && entry._createTakedown !== true && !snapshots.techniques.rows.some(row => sameTechnique(row,{label:entry.takedown_label,position:'takedowns'}))) throw new Error('The linked takedown is no longer in the Sheet. Refresh and choose an existing takedown, or explicitly add a new one.');
   // Validate every affected tab before starting any write.
   if (!snapshots.data.rows.some(row => row.id === entry.id)) await append('data', snapshots.data, entry);
   for (const technique of techniques) {
-    if (!snapshots.techniques.rows.some(row => row.id === technique.id)) await append('techniques', snapshots.techniques, technique);
+    if (!snapshots.techniques.rows.some(row => row.id === technique.id || sameTechnique(row,technique))) await append('techniques', snapshots.techniques, technique);
   }
   for (const pearl of pearls) {
     if (!snapshots.pearls.rows.some(row => row.entry_id === entry.id && row.pearl === pearl)) await append('pearls', snapshots.pearls, {date:entry.date, gi:entry.gi, pearl, entry_id:entry.id, created_at:entry.created_at});
@@ -104,6 +107,6 @@ export async function syncEntry(entry) {
   // A save is complete only after all affected Sheet tabs have been read back.
   const updated = {};
   for (const tab of Object.keys(snapshots)) updated[tab] = await readTab(tab);
-  if (!updated.data.rows.some(row => row.id === entry.id) || techniques.some(t => !updated.techniques.rows.some(row => row.id === t.id)) || pearls.some(p => !updated.pearls.rows.some(row => row.entry_id === entry.id && row.pearl === p))) throw new Error('Sheet read-back did not confirm every saved row. Retry safely to reconcile this entry.');
+  if (!updated.data.rows.some(row => row.id === entry.id) || techniques.some(t => !updated.techniques.rows.some(row => row.id === t.id || sameTechnique(row,t))) || pearls.some(p => !updated.pearls.rows.some(row => row.entry_id === entry.id && row.pearl === p))) throw new Error('Sheet read-back did not confirm every saved row. Retry safely to reconcile this entry.');
   return updated;
 }

@@ -1,116 +1,170 @@
-import {read,write} from './store.js';
-import {connect,disconnect,accessToken,ensureAccess,readTab,syncEntry} from './sheets.js?v=2';
-import {Recording,restoredRecording,discardRecording} from './recording.js';
-const $ = id => document.getElementById(id);
-const fieldDefinitions = [
- ['date','Training date','date'],['entry_type','Session type',['class','drill','technique']],['gi','Training kit',['gi','nogi']],['lesson','Session focus','text'],
- ['technique','What you practiced','area'],['rolls','What happened in rolling','area'],['standup','Standup / takedowns','area'],['drillwork','Solo drilling','area'],['pearls','What clicked · one insight per line','area'],['fundamentals','Principles you noticed','area'],['notes','Other notes','area'],
- ['position','Position','text'],['technique_label','Technique name','text'],['takedown_label','Takedown name','text'],['map_node','Strategy map reference (optional)','text']
-];
-const today = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; };
-let draft = {id:crypto.randomUUID(), date:today(),entry_type:'class',gi:'gi',transcript:'',fields:{}};
-let queue = [], busy = false, audioUrl, storageFailed = false;
-const logs = [];
-function status(message,error=false) {
- for (const id of ['status','review-status']) { $(id).hidden=false; $(id).textContent=message; $(id).classList.toggle('error',error); }
- if (error) logs.push({at:new Date().toISOString(),message});
- if (logs.length>30) logs.shift();
+import {read,write,remove} from './store.js';
+import {connect,disconnect,accessToken,ensureAccess,readTab,syncEntry} from './sheets.js?v=3';
+import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey} from './journal.js?v=3';
+import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=3';
+const $=id=>document.getElementById(id);
+let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='';
+let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
+function status(message,error=false){
+ for(const id of ['status','review-status']){ $(id).hidden=false;$(id).textContent=message;$(id).classList.toggle('error',error); }
+ if(view!=='journal'){ $('workspace-status').hidden=false;$('workspace-status').textContent=message;$('workspace-status').classList.toggle('error',error); }
+ if(error){logs.push({at:new Date().toISOString(),message});if(logs.length>30)logs.shift();}
 }
-window.addEventListener('error', () => status('An unexpected error occurred. Your saved draft is retained. Copy diagnostics in Connection settings.',true));
-window.addEventListener('unhandledrejection', () => status('An operation could not finish. Your saved draft is retained. Copy diagnostics in Connection settings.',true));
-for (const [key,label,type] of fieldDefinitions) {
- const wrapper = document.createElement('div'); if (type==='area') wrapper.className='wide';
- const caption = document.createElement('label'); caption.htmlFor=key; caption.textContent=label;
- const input = document.createElement(Array.isArray(type)?'select':type==='area'?'textarea':'input'); input.id=key; input.name=key;
- if (Array.isArray(type)) type.forEach(value => { const option=document.createElement('option'); option.value=value; option.textContent={class:'Class',drill:'Home drill',technique:'Technique',gi:'Gi',nogi:'No-gi'}[value];input.append(option); });
- else if (type==='area') input.rows=3; else input.type=type;
- if (key==='date') input.required=true;
- wrapper.append(caption,input); (['date','entry_type','gi','lesson','technique','rolls','pearls'].includes(key)?$('fields'):$('extra-fields')).append(wrapper);
+window.addEventListener('error',()=>status('An unexpected error occurred. Your saved draft is retained. Use Settings → Copy diagnostics.',true));
+window.addEventListener('unhandledrejection',()=>status('An operation could not finish. Your saved draft is retained. Use Settings → Copy diagnostics.',true));
+const node=(tag,text)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;return el;};
+function addOptions(input,options,empty='Select…'){
+ input.replaceChildren();if(empty!==null){const option=node('option',empty);option.value='';input.append(option);}
+ for(const [value,label]of options){const option=node('option',label);option.value=value;input.append(option);}
 }
-function fillFields() { for (const [key] of fieldDefinitions) $(key).value = draft.fields[key] ?? draft[key] ?? ''; $('original').value=draft.transcript; }
-function collect() { return Object.fromEntries(fieldDefinitions.map(([key])=>[key,$(key).value.trim()])); }
-let draftWrites = Promise.resolve();
-function persistDraft() {
- const snapshot = structuredClone(draft);
- draftWrites = draftWrites.catch(()=>{}).then(()=>write('draft',snapshot));
- return draftWrites.catch(() => { storageFailed=true; status('This browser could not save your draft locally. Keep this page open and copy your recap before leaving.',true); throw new Error('Local draft storage unavailable.'); });
+function inputField(key,label,type,parent){
+ const wrapper=node('div');wrapper.id='field-'+key;
+ if(type==='area')wrapper.className='wide';
+ const caption=node('label',label);caption.htmlFor=key;
+ const input=node(Array.isArray(type)?'select':type==='area'?'textarea':'input');input.id=key;input.name=key;
+ if(Array.isArray(type))addOptions(input,type,null);else if(type==='area')input.rows=3;else input.type=type;
+ if(key==='date')input.required=true;
+ wrapper.append(caption,input);parent.append(wrapper);return wrapper;
 }
-function changed() { draft.fields=collect(); draft.transcript=$('transcript').value; $('original').value=draft.transcript; persistDraft().catch(()=>{}); }
-$('entry-form').addEventListener('input',changed);
+for(const [key,label,type]of FIELDS)inputField(key,label,type,$('fields'));
+function toggle(key,label,parent){const wrapper=node('label');wrapper.className='toggle';const input=node('input');input.type='checkbox';input.id=key;wrapper.append(input,document.createTextNode(label));parent.append(wrapper);}
+const techniqueLinks=node('div');techniqueLinks.className='link-controls';
+inputField('existing-technique','Link an existing technique',[] ,techniqueLinks);
+toggle('new-technique','New Technique · add to my library',techniqueLinks);
+const techniqueMeta=node('div');techniqueMeta.id='technique-meta';techniqueMeta.className='fields link-panel';
+inputField('technique_label','Technique name','text',techniqueMeta);inputField('position','Position',POSITIONS,techniqueMeta);techniqueLinks.append(techniqueMeta);$('field-technique').append(techniqueLinks);
+const takedownLinks=node('div');takedownLinks.className='link-controls';
+inputField('existing-takedown','Link an existing takedown',[],takedownLinks);toggle('new-takedown','New Takedown · add to my library',takedownLinks);
+const takedownMeta=node('div');takedownMeta.id='takedown-meta';takedownMeta.className='link-panel';inputField('takedown_label','Takedown name','text',takedownMeta);takedownLinks.append(takedownMeta);$('field-standup').append(takedownLinks);
+const mapLinks=node('div');mapLinks.className='wide link-controls';toggle('link-map','Link to Strategy Map',mapLinks);
+const mapMeta=node('div');mapMeta.id='map-meta';inputField('map_node','Strategy map reference',MAP_NODES,mapMeta);const note=node('p','Saves a link to the description under Strategy links. The interactive map comes later.');note.className='hint';mapMeta.append(note);mapLinks.append(mapMeta);$('fields').append(mapLinks);
+// Placeholder values must not implicitly select a position or map node.
+addOptions($('position'),POSITIONS);addOptions($('map_node'),MAP_NODES);
+function persistDraft(){const snapshot=structuredClone(draft);draftWrites=draftWrites.catch(()=>{}).then(()=>write('draft',snapshot));return draftWrites.catch(()=>{storageFailed=true;status('Local draft storage is unavailable. Keep the page open and copy your words before leaving.',true);throw new Error('Local draft storage unavailable.');});}
+function currentLinks(){return {createTechnique:$('new-technique').checked,createTakedown:$('new-takedown').checked,linkMap:$('link-map').checked,existingTechnique:$('existing-technique').value,existingTakedown:$('existing-takedown').value};}
+function collect(){return Object.fromEntries([...FIELDS.map(([key])=>key),'position','technique_label','takedown_label','map_node'].map(key=>[key,$(key).value.trim()]));}
+function changed(){draft.fields=collect();draft.links=currentLinks();draft.transcript=$('transcript').value;$('original').value=draft.transcript;persistDraft().catch(()=>{});}
+function setValue(key,value){const el=$(key);if(el.tagName==='SELECT'&&value&&![...el.options].some(option=>option.value===value)){const option=node('option',value);option.value=value;el.append(option);}el.value=value||'';}
+function formVisibility(){
+ const type=$('entry_type').value;
+ for(const key of ['lesson','standup','rolls'])$('field-'+key).hidden=type!=='class';
+ $('field-drillwork').hidden=type!=='drill';$('field-technique').hidden=type==='drill';$('field-gi').hidden=type!=='class';
+ $('technique-meta').hidden=!$('new-technique').checked&&!$('existing-technique').value;
+ $('takedown-meta').hidden=!$('new-takedown').checked&&!$('existing-takedown').value;
+ mapLinks.hidden=type==='drill'; $('map-meta').hidden=!$('link-map').checked;
+ $('technique_label').readOnly=!!$('existing-technique').value;
+ $('position').disabled=busy||!!$('existing-technique').value;
+ $('takedown_label').readOnly=!!$('existing-takedown').value;
+}
+function fillFields(){
+ for(const [key]of FIELDS)setValue(key,draft.fields[key]??draft[key]??'');
+ for(const key of ['position','technique_label','takedown_label','map_node'])setValue(key,draft.fields[key]||'');
+ $('new-technique').checked=!!draft.links?.createTechnique;$('new-takedown').checked=!!draft.links?.createTakedown;$('link-map').checked=!!draft.links?.linkMap;
+ setValue('existing-technique',draft.links?.existingTechnique||'');setValue('existing-takedown',draft.links?.existingTakedown||'');
+ $('original').value=draft.transcript;formVisibility();
+}
+function updateExistingOptions(){
+ for(const [id,isTakedown]of [['existing-technique',false],['existing-takedown',true]]){
+  const previous=$(id).value;const groups=new Map();for(const row of snapshots.techniques?.rows||[]){if(!techniqueName(row))continue;if((positionKey(row.position)==='takedowns')!==isTakedown)continue;groups.set(techniqueKey(row),row);}
+  addOptions($(id),[...groups].map(([key,row])=>[key,techniqueName(row)+(row.position?' · '+(POSITIONS.find(([value])=>value===positionKey(row.position))?.[1]||row.position):'')]),'No library link');
+  setValue(id,previous||draft.links?.[isTakedown?'existingTakedown':'existingTechnique']||'');
+ }
+}
+function controls(){const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
+$('entry-form').addEventListener('input',()=>{formVisibility();changed();});
 $('transcript').addEventListener('input',changed);
-function review() { draft.reviewOpen=true; persistDraft().catch(()=>{}); fillFields(); $('review').hidden=false;  $('review').scrollIntoView({behavior:'smooth',block:'start'}); }
-function controls() { for (const id of ['organize','save','connect','refresh','new-draft','disconnect']) $(id).disabled = busy || recorder.active || recorder.finishing; for(const input of $('entry-form').querySelectorAll('input, textarea, select')) input.disabled=busy; $('record').disabled=busy || recorder.finishing; $('transcript').readOnly=recorder.active||busy; $('organize').textContent=busy?'Please wait…':'Organize my recap'; $('manual').disabled=busy||recorder.active||recorder.finishing; }
-function showAudio(blob) {
- if (!blob?.size) return;
- if (audioUrl) URL.revokeObjectURL(audioUrl);
- audioUrl=URL.createObjectURL(blob); $('audio').src=audioUrl; $('audio').hidden=false;
- $('download').href=audioUrl; $('download').download=blob.type.includes('mp4')?'dojo-recap.m4a':'dojo-recap.webm';$('download').hidden=false;
-}
-const recorder = new Recording({
- onText:text=>{$('transcript').value=text; changed();},
- onStatus:text=>{$('record-state').textContent=text;},
- onStop:blob=>{showAudio(blob);$('record').textContent='Record more';$('record-state').textContent='Recording stopped. Review your words before organizing.';controls();}
-});
-$('record').onclick = async () => {
- if (recorder.active) { recorder.stop(); controls(); return; }
- busy=true;controls();
- try { await recorder.start($('transcript').value);$('record').textContent='Stop recording'; }
- catch(error) {status(`Microphone: ${error.message}`,true);}
- busy=false;controls();
-};
-window.addEventListener('beforeunload',event=>{if(recorder.active){event.preventDefault();event.returnValue='';}});
-$('manual').onclick=()=>{changed();review();status('Manual entry: fill in the session details below. AI has not organized this recap.');};
+for(const [checkbox,existing]of [['new-technique','existing-technique'],['new-takedown','existing-takedown']])$(checkbox).addEventListener('change',()=>{if($(checkbox).checked)$(existing).value='';formVisibility();changed();});
+for(const [id,checkbox,name]of [['existing-technique','new-technique','technique_label'],['existing-takedown','new-takedown','takedown_label']])$(id).addEventListener('change',()=>{const row=(snapshots.techniques?.rows||[]).find(row=>techniqueKey(row)===$(id).value);$(checkbox).checked=false;$(name).value=row?techniqueName(row):'';if(id==='existing-technique')setValue('position',row?.position||'');formVisibility();changed();});
+function review(){draft.reviewOpen=true;persistDraft().catch(()=>{});fillFields();$('review').hidden=false;$('review').scrollIntoView({behavior:'smooth',block:'start'});}
+$('manual').onclick=()=>{changed();review();status('Enter your session details below. Nothing is saved to Sheets until you tap Save.');};
 $('organize').onclick=async()=>{
- const transcript=$('transcript').value.trim(); if(!transcript)return status('Add your recap first.',true);
- const url=$('worker-url').value.trim();
- if(!url)return status('AI is not connected yet. Add the new Worker URL under Connection settings, or fill in the details yourself.',true);
- changed();busy=true;controls();status('Organizing your recap. Your original words are retained.');
- try {
-  await ensureAccess();
-  await persistDraft();
-  const endpoint=new URL('/parse-workout',url);if(endpoint.protocol!=='https:' && !(['localhost','127.0.0.1'].includes(endpoint.hostname)&&endpoint.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');
-  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken()}`},body:JSON.stringify({transcript,today:today()}),signal:AbortSignal.timeout(60000)});
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(`AI HTTP ${response.status}: ${result.error || 'Request failed. Retry or fill in the fields yourself.'}`);
-  if(!result.entry || Array.isArray(result.entry) || typeof result.entry!=='object' || !['lesson','technique','rolls','standup','drillwork','pearls','notes'].some(key=>typeof result.entry[key]==='string'&&result.entry[key].trim()))throw new Error('AI returned no session details. Your recap is safe; retry or enter the details manually.');
-  // The server validates this schema; accept only known strings in the browser as well.
-  const fields={};for(const [key] of fieldDefinitions)if(typeof result.entry[key]==='string')fields[key]=result.entry[key];
-  draft.fields={...draft.fields,...fields};draft.transcript=transcript;await persistDraft();review();status('Ready to review. Nothing has been sent to your Sheet yet.');
+ const transcript=$('transcript').value.trim(),url=$('worker-url').value.trim();
+ if(!transcript)return status('Dictate or type your recap in Your words first.',true);
+ if(!url)return status('Set the AI Worker URL in Settings, or enter the details yourself.',true);
+ if(draft.reviewOpen&&Object.entries(collect()).some(([key,value])=>!['date','entry_type','gi','position','technique_label','takedown_label','map_node'].includes(key)&&value)&&!confirm('Organize again? This replaces the journal fields with a new interpretation. Your library and map choices are kept.'))return;
+ changed();busy=true;controls();status('Organizing your recap…');
+ try{
+  await ensureAccess();await persistDraft();const endpoint=new URL('/parse-workout',url);
+  if(endpoint.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(endpoint.hostname)&&endpoint.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');
+  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${accessToken()}`},body:JSON.stringify({transcript,today:localToday()}),signal:AbortSignal.timeout(60000)});
+  const result=await response.json().catch(()=>({}));if(!response.ok){if(response.status===401)disconnect();throw new Error(`AI HTTP ${response.status}: ${result.error||'Request failed. Your words are retained.'}`);}
+  if(!result.entry||Array.isArray(result.entry)||!['lesson','technique','rolls','standup','drillwork','pearls','notes','fundamentals'].some(key=>typeof result.entry[key]==='string'&&result.entry[key].trim()))throw new Error('AI returned no session details. Your recap is safe.');
+  // AI may organize prose, never opt into library creation or map linking.
+  for(const [key]of FIELDS)if(typeof result.entry[key]==='string')draft.fields[key]=result.entry[key];
+  if(!['class','drill','technique'].includes(draft.fields.entry_type))draft.fields.entry_type='class';
+  if(!['gi','nogi'].includes(draft.fields.gi))draft.fields.gi='gi';
+  draft.transcript=transcript;await persistDraft();review();status('Ready to review. Use New Technique or New Takedown only when adding a library entry.');
  }catch(error){status(`Organize recap: ${error.message}`,true);}finally{busy=false;controls();}
 };
-function displayRecent(snapshot,cached=false) {
- $('recent-list').replaceChildren();
- const rows=[...snapshot.rows].filter(row=>row.date).sort((a,b)=>String(b.date).localeCompare(String(a.date)) || String(b.created_at).localeCompare(String(a.created_at))).slice(0,8);
- $('recent-state').textContent=`${cached?'Cached on this device':'Read from Google Sheets'} · ${rows.length? 'latest sessions':'no sessions yet'}`;
- for(const row of rows){const article=document.createElement('article');article.className='session';const title=document.createElement('strong');title.textContent=row.lesson||row.technique_label||'Training session';const meta=document.createElement('small');meta.textContent=`${row.date} · ${row.entry_type||'class'} · ${row.gi||''}`;const text=document.createElement('p');text.textContent=row.pearls||row.technique||row.notes||'';article.append(meta,document.createElement('br'),title,text);$('recent-list').append(article);}
+function render(){
+ const journal=view==='journal';$('journal-view').hidden=!journal;$('knowledge-view').hidden=journal;
+ for(const button of document.querySelectorAll('[data-view]')){if(button.dataset.view===view)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
+ if(journal){const count=renderJournal(snapshots.data,{filter:$('journal-filter').value,type:$('journal-type').value,limit,selected});$('recent-state').textContent=`${cached?'Cached on this device':'From Google Sheets'} · ${count} sessions`;}else renderKnowledge(view,snapshots,{filter:$('knowledge-filter').value,selected,cached:cached||!!(view==='pearls'?snapshots.pearls?.stale:view==='techniques'?snapshots.techniques?.stale:view==='fundamentals'?snapshots.data?.stale:snapshots.techniques?.stale||snapshots.data?.stale)});
+ updateExistingOptions();
 }
-async function loadRecent(){const snapshot=await readTab('data');await write('mirror-data',snapshot);displayRecent(snapshot);}
+function route(){const [target,...parts]=location.hash.slice(1).split('/');view=['journal','techniques','pearls','fundamentals','strategy'].includes(target)?target:'journal';try{selected=decodeURIComponent(parts.join('/'));}catch{selected='';}if(selected){$('journal-filter').value='';$('journal-type').value='';$('knowledge-filter').value='';}render();if(selected)$(view==='journal'?'recent-list':'knowledge-list').scrollIntoView({block:'start'});}
+window.addEventListener('hashchange',route);
+for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{selected='';$('knowledge-filter').value='';if(location.hash==='#'+button.dataset.view)route();else location.hash=button.dataset.view;};
+$('journal-filter').oninput=()=>{selected='';limit=12;render();};$('journal-type').onchange=()=>{selected='';limit=12;render();};$('knowledge-filter').oninput=()=>{selected='';render();};$('more-sessions').onclick=()=>{limit+=12;render();};
+async function loadWorkspace(){
+ const data=await readTab('data');await write('mirror-data',data);snapshots.data=data;cached=false;render();
+ const warnings=[];for(const tab of ['techniques','pearls'])try{const snapshot=await readTab(tab);await write('mirror-'+tab,snapshot);snapshots[tab]=snapshot;}catch(error){if(snapshots[tab])snapshots[tab].stale=true;warnings.push(`${tab}: ${error.message}`);}
+ render();if(warnings.length)throw new Error('Journal loaded, but these sections could not refresh: '+warnings.join(' '));
+}
+async function resetDraft(){draft=newDraft();await persistDraft();$('transcript').value='';fillFields();$('review').hidden=true;controls();}
 async function flushQueue(){
- while(queue.length){const entry=queue[0];const tabs=await syncEntry(entry);for(const [name,snapshot]of Object.entries(tabs))await write('mirror-'+name,snapshot);displayRecent(tabs.data);const remaining=queue.slice(1);await write('queue',remaining);queue=remaining;if(draft.id===entry.id)await resetDraft();}
+ while(queue.length){const entry=queue[0];const tabs=await syncEntry(entry);for(const [tab,snapshot]of Object.entries(tabs)){await write('mirror-'+tab,snapshot);snapshots[tab]=snapshot;}cached=false;render();const pending=queue.slice(1);await write('queue',pending);queue=pending;if(draft.id===entry.id)await resetDraft();}
 }
-$('connect').onclick=async()=>{busy=true;controls();try{await connect();$('connection').textContent='Connected to Google. Your Sheet remains the source of truth.';$('connect').textContent='Reconnect Google';await flushQueue();await loadRecent();status('Connected. Your training history is up to date.');}catch(error){status(error.message,true);}finally{busy=false;controls();}};
-$('disconnect').onclick=()=>{disconnect();$('connection').textContent='Disconnected. Local drafts and cached history remain on this device.';$('connect').textContent='Connect Google Sheet';status('Google session disconnected on this page.');};
-$('refresh').onclick=async()=>{busy=true;controls();try{await ensureAccess();await flushQueue();await loadRecent();status('Your Sheet is up to date.');}catch(error){status(error.message,true);}finally{busy=false;controls();}};
+async function refresh(){if(busy)return;busy=true;controls();try{await ensureAccess();await flushQueue();await loadWorkspace();status('Your journal and linked sections are up to date.');}catch(error){status(error.message,true);}finally{busy=false;controls();}}
+$('refresh').onclick=refresh;$('refresh-knowledge').onclick=refresh;
+$('connect').onclick=async()=>{busy=true;controls();try{await connect();$('connection').textContent='Connected to Google Sheets.';$('connect').textContent='Switch Google account';await flushQueue();await loadWorkspace();status('Connected. Your journal and linked sections are up to date.');}catch(error){status(error.message,true);}finally{busy=false;controls();}};
+$('disconnect').onclick=()=>{disconnect();$('connection').textContent='Disconnected. Drafts and cached entries remain on this device.';$('connect').textContent='Connect Google Sheet';status('Google session disconnected.');};
+function entryFromForm(){
+ const fields=collect(),links=currentLinks(),type=fields.entry_type;
+ if(!fields.date||!/^\d{4}-\d{2}-\d{2}$/.test(fields.date))throw new Error('Choose a training date.');
+ if(type!=='class'){fields.lesson='';fields.standup='';fields.rolls='';fields.gi='';}
+ if(type!=='drill')fields.drillwork='';else fields.technique='';
+ const hasTechnique=type!=='drill'&&(links.createTechnique||!!links.existingTechnique);
+ const hasTakedown=type==='class'&&(links.createTakedown||!!links.existingTakedown);
+ if(!hasTechnique){fields.technique_label='';fields.position='';}
+ if(!hasTakedown)fields.takedown_label='';
+ const useMap=type!=='drill'&&links.linkMap; if(!useMap)fields.map_node='';
+ if(links.createTechnique&&type!=='drill'&&(!fields.technique_label||!fields.position||!fields.technique))throw new Error('New Technique needs a name, position, and detailed description.');
+ if(links.createTakedown&&type==='class'&&(!fields.takedown_label||!fields.standup))throw new Error('New Takedown needs a name and a Standup description.');
+ if(useMap&&(!fields.map_node||(!hasTechnique&&!hasTakedown)))throw new Error('A Strategy Map link needs a reference and a new or existing technique/takedown.');
+ if(!['lesson','standup','technique','drillwork','rolls','pearls','fundamentals','notes'].some(key=>fields[key]))throw new Error('Add at least one journal detail.');
+ return {...fields,id:draft.id,created_at:new Date().toISOString(),notes:[fields.notes,draft.transcript?'Original recap:\n'+draft.transcript:''].filter(Boolean).join('\n\n'),_createTechnique:hasTechnique&&links.createTechnique,_createTakedown:hasTakedown&&links.createTakedown};
+}
 $('entry-form').onsubmit=async event=>{
  event.preventDefault();if(busy)return;
- const fields=collect();if(!fields.date || !['lesson','technique','rolls','standup','drillwork','pearls','notes'].some(key=>fields[key]))return status('Add a date and at least one session detail.',true);
- const existing=queue.find(entry=>entry.id===draft.id);
- if(existing && JSON.stringify(fields)!==JSON.stringify(draft.queuedFields))return status('This entry has a pending save. Retry it with Refresh & sync before starting a new draft; editing partially saved entries is not enabled in this first version.',true);
+ let entry;try{entry=entryFromForm();}catch(error){return status(error.message,true);}
+ const existing=queue.find(item=>item.id===draft.id);
+ if(existing&&JSON.stringify({fields:collect(),links:currentLinks(),transcript:$('transcript').value})!==JSON.stringify(draft.queuedForm))return status('This entry has a pending save. Finish it with Refresh & sync before changing it; your edits are retained in the draft.',true);
  busy=true;controls();
+ // Start renewal from the click gesture, but retain the pending entry even if sign-in fails.
+ const auth=ensureAccess().then(()=>null,error=>error);
  try{
-  changed();await draftWrites;
-  const entry=existing||{...fields,id:draft.id,created_at:new Date().toISOString(),notes:[fields.notes,draft.transcript?'Original recap:\n'+draft.transcript:''].filter(Boolean).join('\n\n')};
-  if(!existing){const pending=[...queue,entry];await write('queue',pending);queue=pending;draft.queuedFields=fields;await persistDraft();}
-  status('Saved on this device. Syncing the journal and linked details…');
-  await flushQueue();status('Saved and read back from Google Sheets, including linked techniques and pearls.');
- }catch(error){status(`Save incomplete: ${error.message}\n${queue.length?'The pending entry is retained on this device. Connect Google, then use Refresh & sync.':'Keep this page open and copy your entry if local storage is unavailable.'}`,true);}finally{busy=false;controls();}
+  changed();await draftWrites;if(!existing){const pending=[...queue,entry];await write('queue',pending);queue=pending;draft.queuedForm={fields:collect(),links:currentLinks(),transcript:$('transcript').value};await persistDraft();}
+  status('Saved on this device. Syncing to Google Sheets…');const authError=await auth;if(authError)throw authError;
+  await flushQueue();status('Saved and confirmed in Google Sheets. Your linked sections are updated.');
+ }catch(error){status(`Save incomplete: ${error.message}\n${queue.length?'Your pending entry is retained. Use Refresh & sync to finish.':'Keep this page open and copy your entry if local storage is unavailable.'}`,true);}finally{busy=false;controls();}
 };
-async function resetDraft(){draft={id:crypto.randomUUID(),date:today(),entry_type:'class',gi:'gi',transcript:'',fields:{}};await persistDraft();$('transcript').value='';fillFields();$('review').hidden=true;$('audio').hidden=true;$('download').hidden=true;await discardRecording();}
-$('new-draft').onclick=async()=>{if(!confirm('Start a new draft? Pending saves are retained; the current draft will be cleared.'))return;try{await resetDraft();status('Ready for a new session.');}catch(error){status(error.message,true);}};
-$('save-settings').onclick=async()=>{try{const value=$('worker-url').value.trim();if(value){const url=new URL(value);if(url.protocol!=='https:' && !(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');if(url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('Enter only the Worker origin, with no path or credentials.');}await write('worker-url',value);status('Connection setting saved on this device.');}catch(error){status(error.message,true);}};
-$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.1',time:new Date().toISOString(),userAgent:navigator.userAgent,recordingSupport:!!window.MediaRecorder,speechSupport:!!(window.SpeechRecognition||window.webkitSpeechRecognition),pendingSaves:queue.length,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens, transcripts, or journal content are included.');}catch{status(report);}};
-window.addEventListener('online',async()=>{if(busy||recorder.active||!queue.length)return;busy=true;controls();try{await flushQueue();status('Pending entries were synced to Google Sheets.');}catch(error){status(`Pending sync: ${error.message}`,true);}finally{busy=false;controls();}});
+$('new-draft').onclick=async()=>{if(!confirm('Start a new draft? Pending saves are kept; this draft will be cleared.'))return;try{await resetDraft();status('Ready for a new session.');}catch(error){status(error.message,true);}};
+$('save-settings').onclick=async()=>{try{const value=$('worker-url').value.trim();if(value){const url=new URL(value);if(url.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');if(url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('Enter the Worker origin only, without a path or credentials.');}await write('worker-url',value);status('Connection setting saved on this device.');}catch(error){status(error.message,true);}};
+$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.3',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
+window.addEventListener('online',async()=>{if(busy||!queue.length)return;busy=true;controls();try{await flushQueue();status('Pending entries synced to Google Sheets.');}catch(error){status(`Pending sync: ${error.message}`,true);}finally{busy=false;controls();}});
+async function restoreEarlierRecording(){
+ const metadata=await read('recording');if(!metadata)return;const chunks=[];for(let i=0;i<metadata.count;i++){const chunk=await read(`audio-${metadata.id}-${i}`);if(chunk)chunks.push(chunk);}if(!chunks.length)return;
+ const blob=new Blob(chunks,{type:metadata.type});legacyAudioUrl=URL.createObjectURL(blob);$('earlier-recording').hidden=false;$('earlier-audio').src=legacyAudioUrl;$('earlier-download').href=legacyAudioUrl;$('earlier-download').download=blob.type.includes('mp4')?'earlier-dojo-recap.m4a':'earlier-dojo-recap.webm';
+}
+$('discard-audio').onclick=async()=>{if(!confirm('Delete the earlier recording from this device? Download it first if you want to keep it.'))return;try{const metadata=await read('recording');if(metadata){for(let i=0;i<metadata.count;i++)await remove(`audio-${metadata.id}-${i}`);await remove('recording');}$('earlier-recording').hidden=true;if(legacyAudioUrl)URL.revokeObjectURL(legacyAudioUrl);status('Earlier recording removed from this device.');}catch(error){status(error.message,true);}};
 try{
- const saved=await read('draft');if(saved)draft=saved;queue=await read('queue')||[];$('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;fillFields();if(draft.reviewOpen || Object.entries(draft.fields).some(([key,value])=>!['date','entry_type','gi'].includes(key)&&typeof value==='string'&&value.trim())){$('review').hidden=false;}
- const mirror=await read('mirror-data');if(mirror)displayRecent(mirror,true);showAudio(await restoredRecording());if(queue.length)status(`${queue.length} pending save(s) retained on this device. Connect Google to finish syncing.`);
-}catch(error){storageFailed=true;status('Local draft storage is unavailable. Keep this page open and copy your recap before leaving.',true);}
+ const saved=await read('draft');if(saved)draft={...newDraft(),...saved,links:{...newDraft().links,...saved.links}};
+ queue=await read('queue')||[];
+ // Preserve unfinished saves made before explicit creation toggles existed.
+ for(const entry of queue){if(!Object.hasOwn(entry,'_createTechnique'))entry._createTechnique=!!entry.technique_label;if(!Object.hasOwn(entry,'_createTakedown'))entry._createTakedown=!!entry.takedown_label;}
+ for(const tab of ['data','techniques','pearls']){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
+ $('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;
+ updateExistingOptions();fillFields();if(draft.reviewOpen)$('review').hidden=false;
+ await restoreEarlierRecording();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);
+}catch(error){storageFailed=true;status('Local storage could not be loaded. Keep this page open and copy your words before leaving.',true);}

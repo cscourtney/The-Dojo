@@ -1,16 +1,42 @@
-# The Dojo next — first phase
+# The Dojo test app — journal and connected sections
 
-The new app is in `next/index.html`. The original app is unchanged. Google Sheet Dojo_Master remains authoritative. This phase implements workout capture, reviewed AI parsing, journal writes with linked techniques/pearls, local draft/audio recovery, pending saves, and recent sessions. It does not yet implement full-history Sensei search, Class Prep, the strategy map, editing saved entries, or a service worker for cold-start offline access.
+Live test address: https://cscourtney.github.io/The-Dojo/next/
 
-## Current evidence
+The original root `The Dojo.html` is unchanged. Google Sheet Dojo_Master remains the source of truth across devices. Browser storage holds drafts, pending saves, and cached Sheet snapshots only.
 
-- Local Chromium integration checks passed using simulated Google and AI services.
-- Worker unit checks passed using simulated identity/provider responses.
-- Simulated microphone test passed for recognition restart and transcript/audio recovery across reload.
-- No real Sheet records were read or changed during development. No real AI request was made.
-- The user reports deploying the Worker and its settings. Direct checks from this cloud environment were blocked by its egress proxy (tunnel HTTP 403); the Worker response, real AI operation, and iPad behavior remain unverified. The frontend has not been published.
+## Input and journal structure
 
-## Preview and verify locally
+The user chose native keyboard dictation or typing. There is no app microphone recorder, audio upload, or transcription-service dependency. Dictate into **Your words**, choose **Organize my recap**, review, then save. Manual entry is available without using AI.
+
+Journal fields retain the original structure: Date, Session type, Gi/No-gi, Lesson/Focus, Standup, Technique (detailed description), Rolls, Pearls, Fundamentals, Notes. Home drill and Technique session types show the relevant subset. Switching types retains hidden draft text for convenience, but irrelevant fields are not sent to Sheets.
+
+- **New Technique** is an explicit checkbox. Name, position, and detailed description are required to create a library entry.
+- **New Takedown** explicitly creates a takedown from its name and Standup description.
+- Existing techniques/takedowns can be linked without creating another library record.
+- A same-name/position entry already present in the library is reused even if New Technique is selected again. Matching ignores case/spacing and normalizes the old position aliases. This is not fuzzy matching of different technique names.
+- **Link to Strategy Map** explicitly persists the selected map reference. There is no automatic map link from a position or from AI suggestions.
+- AI only fills the prose/date/session fields. It cannot select library creation or map linking.
+
+## Connected sections
+
+- **Journal**: all loaded records, sorted by date; searchable, filterable by session type, with full details and links. Twelve shown initially; Show more reveals additional records.
+- **Techniques**: reads the Sheet's `techniques` tab, groups historical instances by name/position, shows all their descriptions and linked sessions.
+- **Pearls**: reads `pearls`; journal saves append applicable pearls and links lead back to the source session.
+- **Fundamentals**: projects the existing `data.fundamentals` field. No new fundamentals tab or schema is introduced.
+- **Strategy links**: groups the persisted `map_node` references and opens linked descriptions. This is a useful list of strategy links, NOT a rebuilt interactive map. The original interactive map remains a later phase.
+
+Opening these sections does not request Google sign-in. Connect or Refresh reads the Sheet and refreshes the device cache. No training content is inserted as HTML.
+
+## Verification and release status
+
+- Comprehensive local Chromium integration checks use simulated Google/AI services; they never read or change the actual Sheet.
+- Checks cover native text-input draft recovery, original journal fields/history, explicit library creation, repeated-technique reuse, cancelled toggles, map/pearl/fundamental cross-links, session types, reordered headers, interrupted subsidiary writes, retry without duplication in the tested scenario, Google-session renewal, bad AI responses, missing headers, mobile/tablet width, and legacy audio recovery.
+- Six Worker unit checks use simulated identity/provider responses.
+- The user previously confirmed the live page loads, Google connects, and AI parsing fills the review fields. The new journal/connected-section update still needs live save/read-back and iPad dictation verification.
+- Cloudflare service and settings were deployed by the user. Worker address: `https://yhe-dojo-next.livingthesearch1.workers.dev`. Source/config are in `worker/` and are unchanged by this frontend update.
+- Direct live-site/Worker checks from the development environment were blocked by its egress proxy. A successful Git push is not proof GitHub Pages has finished deploying; allow the Pages deployment to complete before checking the new version.
+
+## Local development
 
 From the repository root:
 
@@ -18,59 +44,39 @@ From the repository root:
 python -m http.server 8000 --bind 127.0.0.1
 ```
 
-Open the `/next/` path on that local server in a development browser. For actual Google sign-in, the OAuth client must authorize that exact local origin (for example `http://localhost:8000`). The existing production origin is `https://cscourtney.github.io`. This cloud onboarding chat does not provide a user-facing localhost preview.
+Open `/next/` in a development browser. Google OAuth must authorize the exact origin for real sign-in; the existing production origin is `https://cscourtney.github.io`.
 
-Checks (Node 24, Python Playwright, and `/usr/bin/chromium` are available here):
+Run:
 
 ```sh
-node --test tests/worker.test.mjs
+node tests/worker.test.mjs
 python tests/browser_smoke.py
-python tests/recording_smoke.py
 ```
 
-## Connect the new AI Worker
+The prepared environment has Node, Python Playwright, and `/usr/bin/chromium`. Browser process sandbox permission may be required in a restricted task. The previous microphone simulation is removed because recording is no longer part of the product flow.
 
-Deploy this as a NEW Worker; do not overwrite the old service used by the original app.
+## First real-use check
 
-1. In Cloudflare, use `worker/worker.mjs` and `worker/wrangler.toml`. The deployed Worker name is `yhe-dojo-next`, at `https://yhe-dojo-next.livingthesearch1.workers.dev`.
-2. Set the secret `ANTHROPIC_API_KEY` securely in Cloudflare. Do not paste it into chat or source files.
-3. Set the variable `MODEL` to a current model enabled on your Anthropic account. The Worker fails closed if it is missing; the configuration now matches the dashboard value `claude-sonnet-4-6`. No model is hardcoded into the app.
-4. Confirm `ALLOWED_EMAILS` contains only your Google account(s). The supplied configuration lists the two accounts in the handoff. Confirm the right account during sign-in.
-5. Keep the `AI_RATE_LIMITER` binding from the configuration (10 requests per 60 seconds per account, with Cloudflare's per-location rate-limit semantics). Origin checks are an additional browser restriction, not the authentication mechanism. This rate limit is not a global billing cap; configure provider spending limits separately if desired.
-6. In the new app's Connection settings, enter the new Worker's HTTPS origin. No key or shared token is entered in the app.
+1. Refresh the live test page; the recording button should be gone and Journal / Techniques / Pearls / Fundamentals / Strategy links should appear.
+2. Connect the correct Google account. Open a historical journal entry and verify all its fields.
+3. Dictate a real recap using the keyboard microphone. Organize, review, and correct it.
+4. If it introduces a new technique, explicitly select New Technique and supply its name/position. Otherwise link an existing technique if desired.
+5. Save. Verify the journal, applicable technique/pearl rows, and Fundamentals view. Refresh on another device to verify cross-device access.
+6. If linking a map reference, open Strategy links and confirm it leads to the intended description. No interactive map behavior is claimed.
+7. For a failure use Settings → Copy diagnostics. Tokens and training content are excluded.
 
-For a developer using the Cloudflare CLI, from `worker/`:
+## Recovery and limitations
 
-```sh
-npx --yes wrangler@4.151.0 login
-npx --yes wrangler@4.151.0 secret put ANTHROPIC_API_KEY
-# Add MODEL in the Cloudflare dashboard or as a non-secret var in wrangler.toml.
-npx --yes wrangler@4.151.0 deploy
-```
+- The current header row drives every read and append. Missing/duplicate headers stop a write. The app does not change Sheet schemas automatically.
+- Original recap text is appended to `notes` with an `Original recap:` marker.
+- Pending entry and subsidiary writes are completed only after read-back of every affected tab. IDs reconcile retries; pearls use `(entry_id, pearl)`.
+- Google Sheets has no atomic unique constraint. Simultaneous creation/retry in multiple tabs/devices is not guaranteed duplicate-free. The local pending queue is device-specific.
+- Pending saves from before explicit creation flags existed retain their old intended subsidiary writes. They are not silently discarded during this update.
+- Any audio from the earlier prototype is retained under Settings → Earlier recording. It can be downloaded or explicitly deleted. New input never requests microphone permission from the app.
+- Google tokens stay in memory. User actions request renewal when needed; Google may show a popup. This is not a persistent backend login across visits.
+- Not yet implemented: interactive map, full-history AI Sensei, Class Prep, editing saved entries, or a service worker for cold-start offline access.
+- Historical credentials in legacy root HTML files remain a separate security-cleanup task. No credentials were added to the new app.
 
-Review deployment before running it. Deployment requires Cloudflare account access, which is not available in the current cloud task. The public app supplies a Google OAuth access token with `openid email spreadsheets` scopes; the Worker checks Google's verified email and its server-side allowlist. Do not connect the old pass-through Worker to this new app.
+## Cloudflare configuration (already completed by the user)
 
-## Publish the separate test app
-
-Review the new files first. When approved, publish the repository changes through GitHub Pages. The intended separate test address is the existing Pages site plus `/next/`; it is not live until the files are published. Keep `The Dojo.html` and its current address unchanged. No production entry-point or Pages setting needs changing if the current Pages build publishes the repository root.
-
-## First live iPad check — the finish line
-
-1. Open the new test app over HTTPS and connect the correct Google account. Confirm recent entries match Dojo_Master.
-2. Record a three-minute recap with pauses. Stop, replay the retained audio, and inspect the transcript. Background/screen-off recording is not promised; keep the app open.
-3. Organize the recap. Confirm dates, BJJ terms, and meaning; correct fields before saving. AI never saves automatically.
-4. Save a clearly labeled test entry including a pearl and technique name. Confirm the entry and linked rows in the actual Sheet, then refresh on the other device.
-5. Interrupt the network during a save, reconnect, and finish using Refresh & sync. Confirm one journal row and the applicable linked rows.
-6. If a step fails, use Connection settings → Copy diagnostics. The report excludes tokens and training content.
-
-This phase is not complete until these real-service checks pass. Native speech recognition accuracy and simultaneous audio-recording behavior vary on iOS. If live transcription is unavailable, the app retains audio for download and permits typed/native keyboard dictation; it does NOT yet upload audio to a transcription API.
-
-## Data details and limitations
-
-- Reads and appends use the current header row. Missing/duplicate headers stop a write rather than silently losing fields. Required `data` headers are documented in `docs/GOOGLE_SHEET.md`. The app does not add headers or change the Sheet schema automatically.
-- Original recap text is preserved in `notes`, alongside reviewed notes, with an `Original recap:` marker. No new Sheet column is required.
-- Stable IDs reconcile retry-after-timeout and partial subsidiary writes. Pearls are identified by `(entry_id, pearl)` because the existing schema has no pearl ID.
-- Sheets has no atomic unique constraint. Simultaneous retries of the same pending entry in multiple open tabs/devices are not guaranteed duplicate-free. Pending drafts are device-local, so cross-device testing should read a completed Sheet save rather than copy a pending queue.
-- Local audio is not uploaded to Sheets or AI. It is retained for the current draft, can be downloaded, and is removed when that draft is completed or replaced. Browser storage can still be cleared or run out of space.
-- Opening the app does not request Google login. No long-lived Google token is stored. Organize and Refresh request a replacement token from their own click when the in-memory session is missing or expired, without forcing account selection. Google may still show a popup. This is not a persistent backend session across visits.
-- Existing old files may still contain historical credentials. They were not copied into the new code; revocation and legacy-file cleanup remain a separate security task from the handoff.
+`worker/wrangler.toml` matches the Worker name `yhe-dojo-next`, model `claude-sonnet-4-6`, allowed Google account emails, and `AI_RATE_LIMITER` binding (10 requests per 60 seconds per account, with Cloudflare's per-location rate-limit semantics). `ANTHROPIC_API_KEY` is a Cloudflare secret; never place it in Git or chat. Authentication checks Google's verified email against the server-side allowlist. Origin checks are supplemental, not authentication. No Worker redeployment is required for this journal update.
