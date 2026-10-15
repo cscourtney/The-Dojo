@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#192621"><title>The Dojo · Training journal</title><script src="https://accounts.google.com/gsi/client" async defer></script><link rel="stylesheet" href="./style.css"></head>
+<body>
+<header><a class="brand" href="./"><img src="./assets/sensei.png" alt=""><span>THE DOJO</span></a><button id="connect" class="quiet">Connect Google Sheet</button></header>
+<main>
+<div class="intro"><div><h1>The Dojo</h1></div><img class="hero-art" src="./assets/warrior.png" alt="Your hooded sensei"></div>
+<div class="layout"><section class="card capture"><div class="section-heading"><div><h2>Log your workout</h2><p>Talk or type. Review. Save.</p></div></div>
+<div class="record-area"><button id="record" class="primary">Start recording</button><span id="record-state" role="status">Keep this page open while recording.</span><audio id="audio" controls hidden></audio><a id="download" hidden>Download recording</a></div>
+<label for="transcript">Your words</label><textarea id="transcript" rows="4" placeholder="What happened in training?"></textarea><p class="hint">Draft saved on this device.</p>
+<div class="actions"><button id="organize" class="primary">Organize my recap</button><button id="manual" class="quiet">Enter details</button></div>
+</section>
+</div>
+<section id="review" class="card review" hidden><div class="section-heading"><div><h2>Review your session</h2><p>Your words, organized. Change anything before saving.</p></div></div><form id="entry-form"><div id="fields" class="fields"></div><details id="optional-fields"><summary>More session details & technique links</summary><div id="extra-fields" class="fields"></div></details><label for="original">Original recap · saved in Notes with this entry</label><textarea id="original" rows="3" readonly></textarea><div class="actions"><button id="save" class="primary" type="submit">Save to Google Sheets</button><button id="new-draft" type="button" class="quiet">Start a new draft</button></div></form></section>
+<section class="card recent"><div class="section-heading"><div><h2>Your recent sessions</h2><p id="recent-state">Connect Google to read your training history.</p></div><button id="refresh" class="quiet">Refresh & sync</button></div><div id="recent-list"></div></section>
+<details class="settings"><summary>Settings</summary><p id="connection">Not connected. Drafts are saved on this device.</p><p><a href="https://docs.google.com/spreadsheets/d/11qPTV7nS28ZdK0Yd1kTAZVMot30lLA9024N1JeYlgwc/edit" target="_blank" rel="noopener">Open Google Sheet ↗</a> · <a href="../The%20Dojo.html">Original Dojo ↗</a></p><label for="worker-url">AI Worker URL</label><input id="worker-url" type="url" placeholder="https://your-worker.workers.dev"><p class="hint">Use the dedicated new Worker described in SETUP.md. The old Worker is not compatible.</p><button id="save-settings" class="quiet">Save connection setting</button><button id="diagnostics" class="quiet">Copy diagnostics</button><button id="disconnect" class="quiet">Disconnect Google</button></details>
+<p id="status" class="status" role="status" aria-live="polite" hidden></p>
+</main><footer>THE DOJO <span>Training journal</span></footer><script type="module" src="./js/app.js"></script>
+</body></html>

@@ -1,0 +1,14 @@
+name = "yhe-dojo-next"
+main = "worker.mjs"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Keep these values aligned with the deployed Cloudflare dashboard.
+MODEL = "claude-sonnet-4-6"
+ALLOWED_EMAILS = "cscourtneymd@gmail.com,livingthesearch1@gmail.com"
+ALLOWED_ORIGINS = "https://cscourtney.github.io,http://localhost:8000,http://127.0.0.1:8000"
+
+[[ratelimits]]
+name = "AI_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
