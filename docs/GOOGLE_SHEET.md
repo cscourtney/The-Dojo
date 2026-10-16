@@ -1,6 +1,6 @@
 # GOOGLE_SHEET.md — the data layer
 
-> Update for the `/next/` app: journal writes follow freshly read headers. Technique/takedown library creation requires an explicit New Technique/New Takedown choice, and existing same-name/position records are reused. Map links are opt-in. Fundamentals is read from `data.fundamentals`; no new tab. See `next/SETUP.md` for the current implementation. Tables below document the existing Sheet contract; older “currently” descriptions refer to the legacy app.
+> Update for the `/next/` app: journal writes follow freshly read headers. Technique/takedown library creation requires an explicit New Technique/New Takedown choice, and existing same-name/position records are reused. Map links are opt-in. Fundamentals is read from `data.fundamentals`; no new tab. Direct fundamental notes use `entry_type=fundamental`; direct technique-to-map links use `entry_type=reference`. Both are reference records, excluded from workout history. Direct pearls use a stable `direct:` UUID in `entry_id` without a journal hyperlink. See `next/SETUP.md` for the current implementation. Tables below document the existing Sheet contract; older “currently” descriptions refer to the legacy app.
 
 The Google Sheet is the single source of truth for everything Chuck records. The app reads it, writes to it, and mirrors it locally. Chuck also edits it by hand. Treat it as a database whose user sometimes walks in and rearranges the furniture.
 

@@ -27,3 +27,9 @@ textarea{background:#fffdf780;border-color:#cbc9b8}
 .session p{font:16px/1.6 system-ui,sans-serif}
 footer{font-family:'Dojo Title',cursive}
 @media(max-width:600px){.brand{font-size:28px}h1{font-size:46px}}
+
+.library-form{margin:22px 0;padding:20px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.library-form h3{margin-top:0}.library-form .fields{margin-top:20px}.library-form [type=submit]{min-height:48px}.library-actions{margin-bottom:22px}
+.category-grid{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}.category-grid button{font-size:13px;min-height:44px;max-width:100%;overflow-wrap:anywhere}
+.category-grid button[aria-pressed=true]{background:var(--green);color:var(--paper)}
+@media(max-width:600px){.library-form{padding:16px}.library-actions>button{flex:1 1 160px}}

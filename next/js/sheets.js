@@ -1,4 +1,4 @@
-import {sameTechnique} from './journal.js?v=3';
+import {sameTechnique,canonicalMapKey} from './journal.js?v=9';
 export const SHEET_ID = '11qPTV7nS28ZdK0Yd1kTAZVMot30lLA9024N1JeYlgwc';
 export const CLIENT_ID = '766609056854-bdk65cprg46q2sni85pr2kges9u18mfl.apps.googleusercontent.com';
 let token = '', expires = 0;
@@ -59,12 +59,22 @@ export async function readTab(tab) {
   const result = await request(`/values/${encodeURIComponent(tab)}`);
   return {...parseTab(tab, result.values || []),syncedAt:new Date().toISOString()};
 }
+// Normalize known header labels for reading and writing; physical columns remain unchanged.
+export function canonicalHeader(tab,value){
+ const key=String(value??'').trim().toLowerCase().replace(/[’']/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+ const common={record_id:'id',entryid:'entry_id',created:'created_at',createdat:'created_at',map_reference:'map_node',strategy_map_reference:'map_node',technique_name:'label',danaher:'danaher_category',danahercategory:'danaher_category',gi_no_gi:'gi'};
+ if(tab==='techniques')return ({technique:'description',technique_label:'label',name:'label',technique_description:'description',detailed_description:'description',details:'description',category:'danaher_category'})[key]||common[key]||key;
+ if(tab==='pearls')return ({pearls:'pearl',text:'pearl',journal_entry_id:'entry_id'})[key]||common[key]||key;
+ if(tab==='data')return ({focus:'lesson',lesson_focus:'lesson',rolling:'rolls',fundamental:'fundamentals',technique_name:'technique_label',takedown_name:'takedown_label',type:'entry_type',gi_no_gi:'gi'})[key]||common[key]||key;
+ return key;
+}
 export function parseTab(tab, values) {
   const [raw = [], ...rows] = values;
   const headers = raw.map(h => String(h ?? '').trim());
+  const headerKeys = headers.map(header=>canonicalHeader(tab,header));
   if (!headers.some(Boolean)) throw new Error(`${tab}: the first row has no named headers.`);
   const columns = new Map();
-  headers.forEach((header,index) => { if(header){if(!columns.has(header))columns.set(header,[]);columns.get(header).push(index);} });
+  headerKeys.forEach((header,index) => { if(header){if(!columns.has(header))columns.set(header,[]);columns.get(header).push(index);} });
   const duplicateHeaders = [...columns].filter(([,indices]) => indices.length > 1).map(([header]) => header);
   // Keep physical column positions, including unnamed columns, for positional appends.
   // Empty headings are ignored on reads; harmless duplicate columns can still be read.
@@ -77,7 +87,7 @@ export function parseTab(tab, values) {
     }
     return record;
   });
-  return {headers,rows:records,duplicateHeaders};
+  return {headers,headerKeys,rows:records.filter(row=>Object.values(row).some(value=>String(value).trim())),duplicateHeaders};
 }
 function columnName(number) {
   let name = '';
@@ -85,11 +95,11 @@ function columnName(number) {
   return name;
 }
 async function append(tab, snapshot, object) {
-  const values = snapshot.headers.map(header => header ? object[header] ?? '' : '');
+  const values = (snapshot.headerKeys||snapshot.headers).map(header => header ? object[header] ?? '' : '');
   await request(`/values/${encodeURIComponent(`${tab}!A:${columnName(snapshot.headers.length)}`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {method:'POST', body:JSON.stringify({values:[values]})});
 }
 function requireHeaders(tab, snapshot, names) {
-  const missing = names.filter(name => !snapshot.headers.includes(name));
+  const missing = names.filter(name => !(snapshot.headerKeys||snapshot.headers).includes(name));
   const duplicates = (snapshot.duplicateHeaders || []).filter(header=>names.includes(header));
   if(duplicates.length) throw new Error(`${tab}: repeated writable headers ${duplicates.join(', ')}. Reading is safe, but saving is paused to avoid writing to an ambiguous column. No rows were written.`);
   if (missing.length) throw new Error(`${tab}: missing headers ${missing.join(', ')}. Correct the Sheet headers before retrying; no automatic schema changes were made.`);
@@ -128,6 +138,33 @@ export async function syncEntry(entry) {
   for (const tab of Object.keys(snapshots)) updated[tab] = await readTab(tab);
   if (!updated.data.rows.some(row => row.id === entry.id) || techniques.some(t => !updated.techniques.rows.some(row => row.id === t.id || sameTechnique(row,t))) || pearls.some(p => !updated.pearls.rows.some(row => row.entry_id === entry.id && row.pearl === p))) throw new Error('Sheet read-back did not confirm every saved row. Retry safely to reconcile this entry.');
   return updated;
+}
+
+// Direct library additions use the existing tabs. Stable IDs reconcile uncertain responses.
+export async function syncLibraryEntry(entry){
+ const {kind}=entry;const object={...entry};delete object.kind;
+ let tab,required,linkedInLibrary=false,techniqueSnapshot;
+ if(kind==='techniques'){tab='techniques';required=['id','label','position','description','date','created_at'];if(object.map_node)required.push('map_node');if(object.danaher_category)required.push('danaher_category');}
+ else if(kind==='pearls'){tab='pearls';required=['entry_id','pearl','date','created_at'];}
+ else if(kind==='fundamentals'){tab='data';required=['id','entry_type','date','fundamentals','created_at'];}
+ else if(kind==='map-link'){
+  tab='data';required=['id','entry_type','date','technique_label','position','map_node','created_at'];
+  const library=await readTab('techniques');techniqueSnapshot=library;
+  linkedInLibrary=library.rows.some(row=>sameTechnique(row,{label:object.technique_label,position:object.position})&&canonicalMapKey(row.map_node)===canonicalMapKey(object.map_node));
+  if(!library.rows.some(row=>sameTechnique(row,{label:object.technique_label,position:object.position})))throw new Error('This technique is no longer in the library. Refresh and select it again.');
+ }else throw new Error('Unknown library entry type.');
+ if(object.gi)required.push('gi');if(object.lesson)required.push('lesson');
+ const snapshot=await readTab(tab);requireHeaders(tab,snapshot,required);
+ if(kind==='map-link'&&linkedInLibrary)return {[tab]:snapshot,techniques:techniqueSnapshot};
+ const exists=row=>kind==='pearls'?row.entry_id===object.entry_id&&row.pearl===object.pearl:row.id===object.id;
+ if(!snapshot.rows.some(exists)){
+  if(kind==='techniques'&&snapshot.rows.some(row=>sameTechnique(row,object))){const error=new Error('A technique with this name and position already exists. Open it in Techniques or use Link existing technique on the map.');error.safeToEdit=true;throw error;}
+  if(kind==='map-link'&&snapshot.rows.some(row=>sameTechnique(row,{label:object.technique_label,position:object.position})&&canonicalMapKey(row.map_node)===canonicalMapKey(object.map_node)))return {[tab]:snapshot};
+  await append(tab,snapshot,object);
+ }
+ const updated=await readTab(tab);
+ if(!updated.rows.some(exists))throw new Error('The Sheet has not confirmed this addition yet. Retry to reconcile the same saved draft.');
+ return {[tab]:updated};
 }
 
 // Read every tab through the signed-in browser. Credentials never leave the normal Google route.

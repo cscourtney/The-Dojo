@@ -1,16 +1,16 @@
+import {LibraryEditor} from './library-editor.js?v=9';
 import {makeBookModel,notebookHTML} from './book-model.js?v=7';
 import {StrategyMap} from './strategy-map.js?v=5';
-import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=5';
+import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=9';
 import {read,write,remove} from './store.js';
-import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry} from './sheets.js?v=5';
-import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=5';
-import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=5';
+import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry} from './sheets.js?v=9';
+import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=9';
+import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=9';
 const $=id=>document.getElementById(id);
-let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='';
+let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='',category='';
 let workbook=null;let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
 function status(message,error=false){
- for(const id of ['status','review-status']){ $(id).hidden=false;$(id).textContent=message;$(id).classList.toggle('error',error); }
- if(view!=='journal'){ $('workspace-status').hidden=false;$('workspace-status').textContent=message;$('workspace-status').classList.toggle('error',error); }
+ for(const id of ['status','review-status','workspace-status']){ $(id).hidden=false;$(id).textContent=message;$(id).classList.toggle('error',error); }
  if(error){logs.push({at:new Date().toISOString(),message});if(logs.length>30)logs.shift();}
 }
 window.addEventListener('error',()=>status('An unexpected error occurred. Your saved draft is retained. Use Settings → Copy diagnostics.',true));
@@ -40,7 +40,7 @@ const takedownLinks=node('div');takedownLinks.className='link-controls';
 inputField('existing-takedown','Link an existing takedown',[],takedownLinks);toggle('new-takedown','New Takedown · add to my library',takedownLinks);
 const takedownMeta=node('div');takedownMeta.id='takedown-meta';takedownMeta.className='link-panel';inputField('takedown_label','Takedown name','text',takedownMeta);takedownLinks.append(takedownMeta);$('field-standup').append(takedownLinks);
 const mapLinks=node('div');mapLinks.className='wide link-controls';toggle('link-map','Link to Strategy Map',mapLinks);
-const mapMeta=node('div');mapMeta.id='map-meta';inputField('map_node','Strategy map reference',MAP_NODES,mapMeta);const note=node('p','Saves a link to the description under Strategy links. The interactive map comes later.');note.className='hint';mapMeta.append(note);mapLinks.append(mapMeta);$('fields').append(mapLinks);
+const mapMeta=node('div');mapMeta.id='map-meta';inputField('map_node','Strategy map reference',MAP_NODES,mapMeta);const note=node('p','Saves a link to the description under Strategy links. Open Strategy links to view the connected description.');note.className='hint';mapMeta.append(note);mapLinks.append(mapMeta);$('fields').append(mapLinks);
 // Placeholder values must not implicitly select a position or map node.
 addOptions($('position'),POSITIONS);addOptions($('map_node'),MAP_NODES);
 function persistDraft(){const snapshot=structuredClone(draft);draftWrites=draftWrites.catch(()=>{}).then(()=>write('draft',snapshot));return draftWrites.catch(()=>{storageFailed=true;status('Local draft storage is unavailable. Keep the page open and copy your words before leaving.',true);throw new Error('Local draft storage unavailable.');});}
@@ -73,7 +73,7 @@ function updateExistingOptions(){
   setValue(id,previous||draft.links?.[isTakedown?'existingTakedown':'existingTechnique']||'');
  }
 }
-function controls(){const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect','prep-refresh','search-refresh','resources-refresh','book-build','book-html'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
+function controls(){libraryEditor.setBusy(busy);const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect','prep-refresh','search-refresh','resources-refresh','book-build','book-html'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
 $('entry-form').addEventListener('input',()=>{formVisibility();changed();});
 $('transcript').addEventListener('input',changed);
 for(const [checkbox,existing]of [['new-technique','existing-technique'],['new-takedown','existing-takedown']])$(checkbox).addEventListener('change',()=>{if($(checkbox).checked)$(existing).value='';formVisibility();changed();});
@@ -99,15 +99,22 @@ $('organize').onclick=async()=>{
   draft.transcript=transcript;await persistDraft();review();status('Ready to review. Use New Technique or New Takedown only when adding a library entry.');
  }catch(error){status(`Organize recap: ${error.message}`,true);}finally{busy=false;controls();}
 };
+const libraryEditor=new LibraryEditor({host:$('library-editor'),getSnapshots:()=>snapshots,onNotice:status,authorize:ensureAccess,onBusy:value=>{busy=value;controls();},onSave:async entry=>{
+ const updated=await syncLibraryEntry(entry);
+ for(const [tab,snapshot]of Object.entries(updated)){snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}
+ cached=false;render();
+}});
+$('technique-categories').onclick=event=>{const button=event.target.closest('[data-category]');if(!button)return;category=button.dataset.category;selected='';render();};
 const strategyMap=new StrategyMap({viewport:$('map-viewport'),holder:$('map-holder'),select:$('map-position'),zoomIn:$('map-in'),zoomOut:$('map-out'),fit:$('map-fit'),onSelect:key=>{location.hash='strategy/'+encodeURIComponent(key);}});
 const playback=new PrepPlayback({select:$('prep-voice'),state:$('prep-playback'),play:$('prep-play'),pause:$('prep-pause'),stop:$('prep-stop')});
 function render(){
+ libraryEditor.update(view,selected);
  const journal=view==='journal',knowledge=['techniques','pearls','fundamentals','strategy'].includes(view);
  $('journal-view').hidden=!journal;$('knowledge-view').hidden=!knowledge;$('strategy-map').hidden=view!=='strategy';if(view==='strategy'){strategyMap.update(snapshots,selected);strategyMap.load().catch(error=>status(error.message,true));}
  for(const type of ['prep','search','resources','notebook'])$(type+'-view').hidden=view!==type;
  for(const button of document.querySelectorAll('[data-view]')){if(button.dataset.view===view)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
  if(journal){const count=renderJournal(snapshots.data,{filter:$('journal-filter').value,type:$('journal-type').value,limit,selected});$('recent-state').textContent=`${cached?'Cached on this device':'From Google Sheets'} · ${count} sessions`;}
- else if(knowledge)renderKnowledge(view,snapshots,{filter:$('knowledge-filter').value,selected,cached:cached||!!(view==='pearls'?snapshots.pearls?.stale:view==='techniques'?snapshots.techniques?.stale:view==='fundamentals'?snapshots.data?.stale:snapshots.techniques?.stale||snapshots.data?.stale)});
+ else if(knowledge)renderKnowledge(view,snapshots,{filter:$('knowledge-filter').value,selected,category,cached:cached||!!(view==='pearls'?snapshots.pearls?.stale:view==='techniques'?snapshots.techniques?.stale:view==='fundamentals'?snapshots.data?.stale:snapshots.techniques?.stale||snapshots.data?.stale)});
  else if(view==='prep'){const prep=renderPrep($('prep-content'),snapshots);playback.update(prep.text);}
  else if(view==='search')renderSearch($('history-results'),snapshots,$('history-query').value);
  else if(view==='resources')renderResources($('resource-list'),snapshots,$('resource-query').value);
@@ -117,9 +124,9 @@ for(const button of document.querySelectorAll('[data-view]')){const option=node(
 $('section-menu').onchange=()=>{location.hash=$('section-menu').value;};
 function updateNavigation(){$('section-menu').value=view;$('nav-hint').hidden=true;}
 window.addEventListener('resize',updateNavigation);
-function route(){const previous=view;const [target,...parts]=location.hash.slice(1).split('/');view=['journal','techniques','pearls','fundamentals','strategy','prep','search','resources','notebook'].includes(target)?target:'journal';try{selected=decodeURIComponent(parts.join('/'));if(view==='strategy')selected=canonicalMapKey(selected);}catch{selected='';}if(selected){$('journal-filter').value='';$('journal-type').value='';$('knowledge-filter').value='';}if(previous==='prep'&&view!=='prep')playback.cancel();render();updateNavigation();if(selected)$(view==='journal'?'recent-list':'knowledge-list').scrollIntoView({block:'start'});}
+function route(){const previous=view;const [target,...parts]=location.hash.slice(1).split('/');view=['journal','techniques','pearls','fundamentals','strategy','prep','search','resources','notebook'].includes(target)?target:'journal';try{selected=decodeURIComponent(parts.join('/'));if(view==='strategy')selected=canonicalMapKey(selected);}catch{selected='';}if(selected){category='';$('journal-filter').value='';$('journal-type').value='';$('knowledge-filter').value='';}if(previous!==view){category='';$('knowledge-filter').value='';}if(previous==='prep'&&view!=='prep')playback.cancel();render();updateNavigation();if(selected)$(view==='journal'?'recent-list':'knowledge-list').scrollIntoView({block:'start'});}
 window.addEventListener('hashchange',route);
-for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{selected='';$('knowledge-filter').value='';if(location.hash==='#'+button.dataset.view)route();else location.hash=button.dataset.view;};
+for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{selected='';category='';$('knowledge-filter').value='';if(location.hash==='#'+button.dataset.view)route();else location.hash=button.dataset.view;};
 $('journal-filter').oninput=()=>{selected='';limit=12;render();};$('journal-type').onchange=()=>{selected='';limit=12;render();};$('knowledge-filter').oninput=()=>{selected='';render();};$('more-sessions').onclick=()=>{limit+=12;render();};
 $('history-query').oninput=()=>renderSearch($('history-results'),snapshots,$('history-query').value);
 $('resource-query').oninput=()=>renderResources($('resource-list'),snapshots,$('resource-query').value);
@@ -161,9 +168,14 @@ async function buildNotebook(format){
 $('book-build').onclick=()=>buildNotebook('pdf');$('book-html').onclick=()=>buildNotebook('html');
 window.addEventListener('pagehide',()=>{for(const url of bookURLs)URL.revokeObjectURL(url);playback.cancel(false);});
 async function loadWorkspace(){
- const data=await readTab('data');await write('mirror-data',data);snapshots.data=data;cached=false;render();
- const warnings=[];for(const tab of ['techniques','pearls'])try{const snapshot=await readTab(tab);await write('mirror-'+tab,snapshot);snapshots[tab]=snapshot;}catch(error){if(snapshots[tab])snapshots[tab].stale=true;warnings.push(`${tab}: ${error.message}`);}
- render();if(warnings.length)throw new Error('Journal loaded, but these sections could not refresh: '+warnings.join(' '));
+ const warnings=[];
+ for(const tab of ['data','techniques','pearls']){
+  try{const snapshot=await readTab(tab);snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}
+  catch(error){snapshots[tab]={...(snapshots[tab]||{rows:[],headers:[]}),stale:true,loadError:error.message};warnings.push(`${tab}: ${error.message}`);}
+  render();
+ }
+ cached=false;render();
+ if(warnings.length)throw new Error('Some sections could not refresh: '+warnings.join(' ')+' Other loaded sections remain available.');
 }
 async function resetDraft(){draft=newDraft();await persistDraft();$('transcript').value='';fillFields();$('review').hidden=true;controls();}
 async function flushQueue(){
@@ -205,7 +217,7 @@ $('entry-form').onsubmit=async event=>{
 };
 $('new-draft').onclick=async()=>{if(!confirm('Start a new draft? Pending saves are kept; this draft will be cleared.'))return;try{await resetDraft();status('Ready for a new session.');}catch(error){status(error.message,true);}};
 $('save-settings').onclick=async()=>{try{const value=$('worker-url').value.trim();if(value){const url=new URL(value);if(url.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');if(url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('Enter the Worker origin only, without a path or credentials.');}await write('worker-url',value);status('Connection setting saved on this device.');}catch(error){status(error.message,true);}};
-$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.5',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
+$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.6',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,pendingLibrarySave:!!libraryEditor.pending,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
 window.addEventListener('online',async()=>{if(busy||!queue.length)return;busy=true;controls();try{await flushQueue();status('Pending entries synced to Google Sheets.');}catch(error){status(`Pending sync: ${error.message}`,true);}finally{busy=false;controls();}});
 async function restoreEarlierRecording(){
  const metadata=await read('recording');if(!metadata)return;const chunks=[];for(let i=0;i<metadata.count;i++){const chunk=await read(`audio-${metadata.id}-${i}`);if(chunk)chunks.push(chunk);}if(!chunks.length)return;
@@ -220,5 +232,5 @@ try{
  workbook=await read('workbook')||null;for(const tab of new Set(['data','techniques','pearls',...Object.keys(workbook?.sheets||{})])){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
  $('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;
  updateExistingOptions();fillFields();if(draft.reviewOpen)$('review').hidden=false;
- await restoreEarlierRecording();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);
+ await restoreEarlierRecording();await libraryEditor.restore();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);else if(libraryEditor.pending)status('A library addition has a pending save. Open Techniques, Pearls, Fundamentals, or Strategy links and choose Resume pending save.');
 }catch(error){storageFailed=true;status('Local storage could not be loaded. Keep this page open and copy your words before leaving.',true);}

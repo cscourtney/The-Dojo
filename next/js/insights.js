@@ -1,10 +1,11 @@
+import {isReference} from './library.js?v=9';
 import {sortedEntries,normalize,localToday} from './journal.js?v=3';
 export const STOP_WORDS=new Set('a an and are as at be been but by can could did do does for from had has have how i if in into is it its me my of on or our should so than that the their them there these they this to us was we were what when where which who why will with would you your biggest most about tell show find'.split(' '));
 const text=value=>String(value??'').trim();
 const short=(value,max=170)=>{const s=text(value).replace(/\s+/g,' ');return s.length>max?s.slice(0,max).replace(/\s+\S*$/,'')+'…':s;};
 const active=row=>!['done','complete','completed','fixed','resolved','archived'].includes(normalize(row.status));
 export function makePrep(snapshots){
- const entries=sortedEntries(snapshots.data?.rows||[]).filter(row=>{const date=Date.parse(String(row.date));return row.date&&(Number.isNaN(date)||date<=new Date(localToday()+'T23:59:59').getTime());});
+ const entries=sortedEntries(snapshots.data?.rows||[]).filter(row=>!isReference(row)).filter(row=>{const date=Date.parse(String(row.date));return row.date&&(Number.isNaN(date)||date<=new Date(localToday()+'T23:59:59').getTime());});
  const goals=(snapshots.goals?.rows||[]).filter(active).sort((a,b)=>String(a.priority||'').localeCompare(String(b.priority||'')));
  const mistakes=sortedEntries((snapshots.mistakes?.rows||[]).filter(active));
  const pearls=sortedEntries(snapshots.pearls?.rows||[]).filter(row=>row.pearl);

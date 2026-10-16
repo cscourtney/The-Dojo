@@ -9,14 +9,16 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - Native keyboard dictation or typing is the approved journal input. Do not restore app audio capture or add a transcription API without a new request. Earlier saved audio must remain recoverable until explicitly deleted.
 - Preserve the original journal labels/order and class/home drill/technique session structure. New Technique and New Takedown must be explicit choices; AI must never opt in to creation or map linking.
 - Repeating or linking an existing technique must not create a new library record. Name/position aliases are normalized for duplicate detection; do not merge differently named techniques by guesswork.
-- Pearls read the existing pearls tab; Fundamentals projects journal data. No new fundamentals tab. Strategy links combine a read-only reference-layout diagram with actual linked descriptions from Sheets.
+- Pearls read the existing pearls tab, with a read-only fallback from data.pearls. Techniques also project named journal techniques that are absent from the library. Fundamentals projects data.fundamentals, including direct reference notes. No new fundamentals tab. Strategy links combine a read-only reference-layout diagram with actual linked descriptions from Sheets.
 - Class Prep is built from sourced Sheet records, with native speech playback and no AI call. Clearly label missing/stale sources; never autoplay. Screen-off playback is not verified.
 - Full-workbook keyword retrieval is implemented; it is not AI interpretation. Resource links come from the Sheet and must be specific lessons/videos; reject homepages and unsafe schemes.
 - The strategy diagram uses only the layout from the supplied reference map. Descriptions come from Sheet records, with old node IDs normalized for reading. Do not claim diagram editing or gameplan-layout sync works.
 - Notebook export reads all Sheet tabs in the signed-in browser. PDF/HTML generation is local; never commit private workbook data or call a third-party PDF service. Preserve unnamed/duplicate-column cells in the book even if a tab cannot be interpreted by app views. Do not call a test-fixture PDF the user's book.
 - App appearance: warm paper, Caveat only for The Dojo branding/title, clean system text for navigation, forms, headings, and entries. Preserve the original artwork.
 - Notebook appearance: user selected option A (Patrick Hand body, Caveat headings, warm unlined paper). Keep Back to contents on every PDF page and the white-background print option.
-- Next phases: full-history AI Sensei interpretation, Sheet-backed map editing, saved-entry editing, resource editing, and PWA/offline shell. Do not expose nonworking AI endpoints or invent Sheet schemas.
+- Direct additions are supported from Techniques/Pearls/Fundamentals and map positions. Direct fundamentals use data.entry_type=fundamental; map references use data.entry_type=reference. Exclude both from workout history. Direct pearls use a direct: UUID entry_id, not a journal link. Never silently add Sheet columns. Category browsing uses the existing danaher_category values; the historical exact 15-skill list is absent from the supplied sources, so do not invent it.
+- Library pending saves use library-pending and library-draft in IndexedDB; retry from Resume pending save. Reconcile stable IDs and verify read-back before clearing.
+- Next phases: full-history AI Sensei interpretation, map node/edge editing, saved-entry editing, resource editing, and PWA/offline shell. Do not expose nonworking AI endpoints or invent Sheet schemas.
 - Sheet contract: `docs/GOOGLE_SHEET.md`. The uploaded handoff is historical context, not proof of deployed behavior; its private planning notes are not part of the public test release.
 
 ## Data and infrastructure
@@ -35,6 +37,8 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - `node tests/sheet_headers.test.mjs`
 - `node tests/insights.test.mjs`
 - `node tests/book_model.test.mjs`
+- `node tests/library.test.mjs`
+- `python tests/library_smoke.py` (mocked direct writes, categories, interrupted-save recovery, map links, and mobile forms)
 - `python tests/browser_smoke.py`
 - `python tests/workspace_smoke.py` (also validates generated PDF/HTML; needs pypdf and PyMuPDF, installed here)
 - Python browser checks require Playwright and Chromium, available in the prepared cloud environment. External APIs in these tests are mocked; never describe them as live validation.

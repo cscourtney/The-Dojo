@@ -88,7 +88,7 @@ def main():
   expect(page.locator('#new-technique')).not_to_be_checked();expect(page.locator('#link-map')).not_to_be_checked();expect(page.locator('#technique_label')).to_have_value('');expect(page.locator('#review-status')).to_contain_text('Ready to review')
   context.unroute('https://dojo-test.workers.dev/parse-workout');context.route('https://dojo-test.workers.dev/parse-workout',lambda r:r.fulfill(json={'entry':{}}));page.locator('#organize').click();expect(page.locator('#status')).to_contain_text('AI returned no session details');expect(page.locator('#lesson')).to_have_value('Guard retention')
   # A library read failure keeps the journal usable and labels cached library data honestly.
-  fail['read-techniques']=True;page.locator('#refresh').click();expect(page.locator('#status')).to_contain_text('Journal loaded, but these sections could not refresh')
+  fail['read-techniques']=True;page.locator('#refresh').click();expect(page.locator('#status')).to_contain_text('Some sections could not refresh')
   page.get_by_role('button',name='Techniques',exact=True).click();expect(page.locator('#knowledge-state')).to_contain_text('Cached on this device')
   fail['read-techniques']=False;page.locator('#refresh-knowledge').click();expect(page.locator('#knowledge-state')).to_contain_text('From Google Sheets');page.get_by_role('button',name='Journal',exact=True).click()
   # A separate browser context has no device cache; it reads saved records from the shared Sheet.
