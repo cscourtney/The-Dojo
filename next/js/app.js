@@ -1,4 +1,4 @@
-import {makeBookModel,notebookHTML} from './book-model.js?v=5';
+import {makeBookModel,notebookHTML} from './book-model.js?v=7';
 import {StrategyMap} from './strategy-map.js?v=5';
 import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=5';
 import {read,write,remove} from './store.js';
@@ -148,12 +148,12 @@ async function buildNotebook(format){
   await ensureAccess();await flushQueue();const latest=await loadCompleteWorkbook();
   const stamp=localToday();
   if(format==='pdf'){
-   const {createNotebookPDF}=await import('./book-pdf.js?v=5');
-   const result=await createNotebookPDF(latest,message=>bookMessage(message));
+   const {createNotebookPDF}=await import('./book-pdf.js?v=7');
+   const result=await createNotebookPDF(latest,message=>bookMessage(message),{paper:!$('book-white-paper').checked});
    bookDownload(result.bytes,'application/pdf',`The-Dojo-Notebook-${stamp}.pdf`,'Download PDF notebook');
    bookMessage(`Ready: ${result.pages} pages, ${result.model.tabCount} Sheet tabs, ${result.model.rowCount} original data rows. Snapshot ${latest.fetchedAt}. Use your PDF reader to search or print.`);
   }else{
-   const model=makeBookModel(latest);bookDownload(notebookHTML(model),'text/html;charset=utf-8',`The-Dojo-Notebook-${stamp}.html`,'Download searchable HTML notebook');
+   const model=makeBookModel(latest);const {notebookFonts}=await import('./book-fonts.js?v=7');const fontCSS=await notebookFonts();bookDownload(notebookHTML(model,{fontCSS,paper:!$('book-white-paper').checked}),'text/html;charset=utf-8',`The-Dojo-Notebook-${stamp}.html`,'Download searchable HTML notebook');
    bookMessage(`Ready: ${model.tabCount} Sheet tabs and ${model.rowCount} original data rows, with an index and search. Open the downloaded HTML file in a browser.`);
   }
  }catch(error){bookMessage(`Notebook export: ${error.message}`,true);}finally{busy=false;controls();}

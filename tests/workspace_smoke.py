@@ -65,11 +65,16 @@ def main():
    for block in pdfpage.get_text('dict')['blocks']:
     for line in block.get('lines',[]):
      for span in line['spans']:assert span['bbox'][1]>=0 and span['bbox'][3]<=pdfpage.rect.height,(pdfpage.number,span['bbox'])
-  refs={page.indirect_reference.idnum for page in pdf.pages};links=0
+  refs={page.indirect_reference.idnum for page in pdf.pages};links=0;toc_ref=pdf.pages[1].indirect_reference.idnum
   for pdfpage in pdf.pages:
+   assert 'Back to contents' in pdfpage.extract_text()
+   footer_to_toc=False
    for reference in pdfpage.get('/Annots',[]):
     annotation=reference.get_object();dest=annotation.get('/Dest')
-    if dest:assert dest[0].idnum in refs;links+=1
+    if dest:
+     assert dest[0].idnum in refs;links+=1
+     if dest[0].idnum==toc_ref and annotation.get('/Rect')[1]<60:footer_to_toc=True
+   assert footer_to_toc, 'Every PDF page must link back to the contents'
   assert links>10
   page.locator('#book-html').click();expect(page.get_by_role('link',name='Download searchable HTML notebook')).to_be_visible()
   with page.expect_download() as info:page.get_by_role('link',name='Download searchable HTML notebook').click()

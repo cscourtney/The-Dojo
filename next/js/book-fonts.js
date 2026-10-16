@@ -1,0 +1,4 @@
+// Embed the selected open fonts so the downloaded HTML remains self-contained.
+let fontCSS;
+function base64(buffer){let result='';const bytes=new Uint8Array(buffer);for(let i=0;i<bytes.length;i+=16384)result+=String.fromCharCode(...bytes.subarray(i,i+16384));return btoa(result);}
+export async function notebookFonts(){return fontCSS ||= Promise.all([['Dojo Hand','PatrickHand-Regular.ttf'],['Dojo Heading','Caveat.ttf']].map(async([family,file])=>{const response=await fetch(new URL('../assets/fonts/'+file,import.meta.url),{signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error('Notebook font could not load. Retry while connected.');return `@font-face{font-family:'${family}';src:url(data:font/ttf;base64,${base64(await response.arrayBuffer())}) format('truetype');font-weight:100 900;font-display:swap;}`;})).then(styles=>styles.join('\n')).catch(error=>{fontCSS=null;throw error;});}
