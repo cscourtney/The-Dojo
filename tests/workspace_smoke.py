@@ -79,7 +79,10 @@ def main():
   for label,width,height in [('phone',390,844),('ipad-portrait',768,1024),('ipad-landscape',1024,768)]:
    page.set_viewport_size({'width':width,'height':height})
    for section in ['Class Prep','Search history','Resources','Strategy links','Notebook']:
-    page.get_by_role('button',name=section,exact=True).click();assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(label,section)
+    if page.locator('#section-menu').is_visible():
+     option=page.locator('#section-menu option').filter(has_text=section).first;page.locator('#section-menu').select_option(option.get_attribute('value'))
+    else:page.get_by_role('button',name=section,exact=True).click()
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(label,section)
     if section in ['Class Prep','Strategy links']:page.screenshot(path=f'/tmp/dojo-{label}-{section.replace(" ","-").lower()}-v5.png',full_page=True)
   assert not errors,errors
   browser.close();print(f'PASS: complete-workbook reads; sourced Class Prep and playback controls; historical retrieval; exact timestamp links; map alias connections; {len(pdf.pages)}-page PDF with {links} internal links, bookmarks, index, searchable Unicode text; searchable HTML; mobile/iPad layouts. All Sheet data were test fixtures, not the user workbook.')

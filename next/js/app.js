@@ -113,7 +113,9 @@ function render(){
  else if(view==='resources')renderResources($('resource-list'),snapshots,$('resource-query').value);
  updateExistingOptions();
 }
-function updateNavigation(){const nav=document.querySelector('.workspace-nav');const active=nav.querySelector('[aria-current=page]');$('nav-hint').hidden=nav.scrollWidth<=nav.clientWidth+2;if(active){const left=active.offsetLeft-nav.offsetLeft;if(left<nav.scrollLeft)nav.scrollLeft=left;else if(left+active.offsetWidth>nav.scrollLeft+nav.clientWidth)nav.scrollLeft=left+active.offsetWidth-nav.clientWidth;}}
+for(const button of document.querySelectorAll('[data-view]')){const option=node('option',button.textContent);option.value=button.dataset.view;$('section-menu').append(option);}
+$('section-menu').onchange=()=>{location.hash=$('section-menu').value;};
+function updateNavigation(){$('section-menu').value=view;$('nav-hint').hidden=true;}
 window.addEventListener('resize',updateNavigation);
 function route(){const previous=view;const [target,...parts]=location.hash.slice(1).split('/');view=['journal','techniques','pearls','fundamentals','strategy','prep','search','resources','notebook'].includes(target)?target:'journal';try{selected=decodeURIComponent(parts.join('/'));if(view==='strategy')selected=canonicalMapKey(selected);}catch{selected='';}if(selected){$('journal-filter').value='';$('journal-type').value='';$('knowledge-filter').value='';}if(previous==='prep'&&view!=='prep')playback.cancel();render();updateNavigation();if(selected)$(view==='journal'?'recent-list':'knowledge-list').scrollIntoView({block:'start'});}
 window.addEventListener('hashchange',route);

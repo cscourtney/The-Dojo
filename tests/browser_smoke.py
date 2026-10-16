@@ -99,7 +99,9 @@ def main():
   for label,width,height in [('phone',390,844),('ipad-portrait',768,1024),('ipad-landscape',1024,768)]:
    second.set_viewport_size({'width':width,'height':height})
    for section in ['Journal','Techniques','Pearls','Fundamentals','Strategy links']:
-    second.get_by_role('button',name=section,exact=True).click()
+    if second.locator('#section-menu').is_visible():
+     option=second.locator('#section-menu option').filter(has_text=section).first;second.locator('#section-menu').select_option(option.get_attribute('value'))
+    else:second.get_by_role('button',name=section,exact=True).click()
     assert second.evaluate('document.documentElement.scrollWidth<=innerWidth'),(label,section)
     if section in ['Journal','Pearls']:second.screenshot(path=f'/tmp/dojo-{label}-{section.lower()}.png',full_page=True)
   other.close()
