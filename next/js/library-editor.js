@@ -1,5 +1,6 @@
-import {POSITIONS,MAP_NODES,localToday,techniqueName,canonicalMapKey} from './journal.js?v=9';
-import {categoriesFor,keyForTechnique} from './library.js?v=9';
+import {ORG_TABS,categoryDefinitions,categoryName} from './organization.js?v=12';
+import {POSITIONS,MAP_NODES,localToday,techniqueName,canonicalMapKey} from './journal.js?v=12';
+import {categoriesFor,keyForTechnique} from './library.js?v=12';
 import {read,write,remove} from './store.js';
 const el=(tag,text)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
 export class LibraryEditor{
@@ -53,10 +54,10 @@ export class LibraryEditor{
    const snapshot=this.getSnapshots().techniques;
    if(!snapshot||(snapshot.headerKeys||snapshot.headers).includes('danaher_category')===false){category.dataset.unavailable='true';category.disabled=true;const hint=el('p',snapshot?'The Sheet has no Danaher category column. This addition stays in Needs review; no columns will be added automatically.':'Connect and refresh to load your saved categories. You can add an unclassified technique meanwhile.');hint.className='hint';this.fields.append(hint);}
    this.field('description','Detailed description','textarea').required=true;this.field('gi','Gi / No-gi','select',[['gi','Gi'],['nogi','No-gi']]);
-   this.field('map_node','Strategy map reference (optional)','select',MAP_NODES);
+   this.field('map_node','Strategy map reference (optional)','select',this.nodeOptions());
   }else if(kind==='map-link'){
    const seen=new Set();const options=[];for(const row of this.getSnapshots().techniques?.rows||[]){const key=keyForTechnique(row);if(!techniqueName(row)||seen.has(key))continue;seen.add(key);options.push([key,techniqueName(row)+' · '+row.position]);}
-   this.field('existing','Existing technique','select',options).required=true;this.field('map_node','Strategy map reference','select',MAP_NODES).required=true;
+   this.field('existing','Existing technique','select',options).required=true;this.field('map_node','Strategy map reference','select',this.nodeOptions()).required=true;
    if(!options.length)this.notice('No saved techniques loaded. Close this form, connect Google and refresh Techniques, or add a new technique here.',true);
   }else if(kind==='pearls')this.field('pearl','Pearl','textarea').required=true;
   else{this.field('lesson','Title (optional)');this.field('fundamentals','Fundamental','textarea').required=true;}
@@ -64,6 +65,7 @@ export class LibraryEditor{
   this.update(this.view,this.selected);this.form.scrollIntoView({block:'start',behavior:'smooth'});
   if(this.pending)this.notice('This addition has a pending save. Retry to confirm the same record without adding it twice.');
  }
+ nodeOptions(){const nodes=this.getSnapshots()[ORG_TABS.nodes];return nodes&&!nodes.missing&&!nodes.loadError?(nodes.rows||[]).map(row=>[row.id,row.title]):MAP_NODES;}
  async submit(){
   if(this.busy||this.externalBusy)return;let entry=this.pending;
   if(!entry){
@@ -71,6 +73,7 @@ export class LibraryEditor{
    if(!/^\d{4}-\d{2}-\d{2}$/.test(f.date))return this.notice('Choose a date.',true);
    if(kind==='techniques'&&(!f.label||!f.position||!f.description))return this.notice('Enter the technique name, position, and description.',true);
    if(kind==='pearls'&&!f.pearl||kind==='fundamentals'&&!f.fundamentals)return this.notice('Enter your note before saving.',true);
+   if(kind==='techniques'&&f.danaher_category&&!this.getSnapshots()[ORG_TABS.categories]?.missing&&this.getSnapshots()[ORG_TABS.categories]&&!categoryDefinitions(this.getSnapshots()).some(row=>row.label===categoryName(f.danaher_category,this.getSnapshots())) )return this.notice('Add this category under Categories & map organization first, so its definition and order are saved in Sheets.',true);
    entry={...f,kind,id:this.draft.id,created_at:this.draft.created_at};
    if(kind==='pearls'){entry.entry_id=entry.id;delete entry.id;}
    if(kind==='fundamentals')entry.entry_type='fundamental';

@@ -1,11 +1,13 @@
-import {LibraryEditor} from './library-editor.js?v=9';
-import {makeBookModel,notebookHTML} from './book-model.js?v=7';
-import {StrategyMap} from './strategy-map.js?v=5';
-import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=9';
+import {OrganizationEditor} from './organization-editor.js?v=12';
+import {ORG_TABS} from './organization.js?v=12';
+import {LibraryEditor} from './library-editor.js?v=12';
+import {makeBookModel,notebookHTML} from './book-model.js?v=12';
+import {StrategyMap} from './strategy-map.js?v=12';
+import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=12';
 import {read,write,remove} from './store.js';
-import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry} from './sheets.js?v=9';
-import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=9';
-import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=9';
+import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry,readOrganization,setupOrganization,saveOrganizationRecord} from './sheets.js?v=12';
+import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=12';
+import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=12';
 const $=id=>document.getElementById(id);
 let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='',category='';
 let workbook=null;let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
@@ -73,7 +75,7 @@ function updateExistingOptions(){
   setValue(id,previous||draft.links?.[isTakedown?'existingTakedown':'existingTechnique']||'');
  }
 }
-function controls(){libraryEditor.setBusy(busy);const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect','prep-refresh','search-refresh','resources-refresh','book-build','book-html'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
+function controls(){libraryEditor.setBusy(busy);organizationEditor.setBusy(busy);const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect','prep-refresh','search-refresh','resources-refresh','book-build','book-html'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
 $('entry-form').addEventListener('input',()=>{formVisibility();changed();});
 $('transcript').addEventListener('input',changed);
 for(const [checkbox,existing]of [['new-technique','existing-technique'],['new-takedown','existing-takedown']])$(checkbox).addEventListener('change',()=>{if($(checkbox).checked)$(existing).value='';formVisibility();changed();});
@@ -104,20 +106,27 @@ const libraryEditor=new LibraryEditor({host:$('library-editor'),getSnapshots:()=
  for(const [tab,snapshot]of Object.entries(updated)){snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}
  cached=false;render();
 }});
+async function retainOrganization(updated){for(const [tab,snapshot]of Object.entries(updated)){snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}render();}
+async function initializeOrganization(){
+ const latest=await readWorkbook();const response=await fetch('./assets/strategy-layout.json');if(!response.ok)throw new Error('The original map could not load. No layout was replaced.');
+ const updated=await setupOrganization(latest,await response.json());await retainOrganization(updated);await loadWorkspace();
+}
+const organizationEditor=new OrganizationEditor({host:$('organization-editor'),getSnapshots:()=>snapshots,authorize:ensureAccess,onBusy:value=>{busy=value;controls();},onSetup:initializeOrganization,onRefresh:async()=>retainOrganization(await readOrganization()),onSave:async change=>{const updated=await saveOrganizationRecord(change.tab,change.object,{expected:change.expected});await retainOrganization({[change.tab]:updated,...await readOrganization()});}});
 $('technique-categories').onclick=event=>{const button=event.target.closest('[data-category]');if(!button)return;category=button.dataset.category;selected='';render();};
 const strategyMap=new StrategyMap({viewport:$('map-viewport'),holder:$('map-holder'),select:$('map-position'),zoomIn:$('map-in'),zoomOut:$('map-out'),fit:$('map-fit'),onSelect:key=>{location.hash='strategy/'+encodeURIComponent(key);}});
 const playback=new PrepPlayback({select:$('prep-voice'),state:$('prep-playback'),play:$('prep-play'),pause:$('prep-pause'),stop:$('prep-stop')});
 function render(){
- libraryEditor.update(view,selected);
+ libraryEditor.update(view,selected);organizationEditor.update();
  const journal=view==='journal',knowledge=['techniques','pearls','fundamentals','strategy'].includes(view);
  $('journal-view').hidden=!journal;$('knowledge-view').hidden=!knowledge;$('strategy-map').hidden=view!=='strategy';if(view==='strategy'){strategyMap.update(snapshots,selected);strategyMap.load().catch(error=>status(error.message,true));}
  for(const type of ['prep','search','resources','notebook'])$(type+'-view').hidden=view!==type;
  for(const button of document.querySelectorAll('[data-view]')){if(button.dataset.view===view)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
- if(journal){const count=renderJournal(snapshots.data,{filter:$('journal-filter').value,type:$('journal-type').value,limit,selected});$('recent-state').textContent=`${cached?'Cached on this device':'From Google Sheets'} · ${count} sessions`;}
+ if(journal){const count=renderJournal(snapshots.data,{filter:$('journal-filter').value,type:$('journal-type').value,limit,selected,organization:snapshots});$('recent-state').textContent=`${cached?'Cached on this device':'From Google Sheets'} · ${count} sessions`;}
  else if(knowledge)renderKnowledge(view,snapshots,{filter:$('knowledge-filter').value,selected,category,cached:cached||!!(view==='pearls'?snapshots.pearls?.stale:view==='techniques'?snapshots.techniques?.stale:view==='fundamentals'?snapshots.data?.stale:snapshots.techniques?.stale||snapshots.data?.stale)});
  else if(view==='prep'){const prep=renderPrep($('prep-content'),snapshots);playback.update(prep.text);}
  else if(view==='search')renderSearch($('history-results'),snapshots,$('history-query').value);
  else if(view==='resources')renderResources($('resource-list'),snapshots,$('resource-query').value);
+ const savedNodes=snapshots[ORG_TABS.nodes];if(savedNodes&&!savedNodes.missing&&!savedNodes.loadError){const value=$('map_node').value;addOptions($('map_node'),savedNodes.rows.map(row=>[row.id,row.title]));setValue('map_node',value);}
  updateExistingOptions();
 }
 for(const button of document.querySelectorAll('[data-view]')){const option=node('option',button.textContent);option.value=button.dataset.view;$('section-menu').append(option);}
@@ -152,10 +161,11 @@ function bookDownload(bytes,type,name,label){const url=URL.createObjectURL(new B
 async function buildNotebook(format){
  if(busy)return;busy=true;controls();bookMessage('Connecting to Google and reading every Sheet tab…');
  try{
-  await ensureAccess();await flushQueue();const latest=await loadCompleteWorkbook();
+  await ensureAccess();await flushQueue();let latest=await loadCompleteWorkbook();
+  if(Object.values(ORG_TABS).some(tab=>!latest.sheets[tab])){bookMessage('Saving organization to Sheets for the notebook…');await initializeOrganization();latest=await loadCompleteWorkbook();}
   const stamp=localToday();
   if(format==='pdf'){
-   const {createNotebookPDF}=await import('./book-pdf.js?v=7');
+   const {createNotebookPDF}=await import('./book-pdf.js?v=12');
    const result=await createNotebookPDF(latest,message=>bookMessage(message),{paper:!$('book-white-paper').checked});
    bookDownload(result.bytes,'application/pdf',`The-Dojo-Notebook-${stamp}.pdf`,'Download PDF notebook');
    bookMessage(`Ready: ${result.pages} pages, ${result.model.tabCount} Sheet tabs, ${result.model.rowCount} original data rows. Snapshot ${latest.fetchedAt}. Use your PDF reader to search or print.`);
@@ -174,6 +184,7 @@ async function loadWorkspace(){
   catch(error){snapshots[tab]={...(snapshots[tab]||{rows:[],headers:[]}),stale:true,loadError:error.message};warnings.push(`${tab}: ${error.message}`);}
   render();
  }
+ try{await retainOrganization(await readOrganization());}catch(error){warnings.push('Organization: '+error.message);}
  cached=false;render();
  if(warnings.length)throw new Error('Some sections could not refresh: '+warnings.join(' ')+' Other loaded sections remain available.');
 }
@@ -217,7 +228,7 @@ $('entry-form').onsubmit=async event=>{
 };
 $('new-draft').onclick=async()=>{if(!confirm('Start a new draft? Pending saves are kept; this draft will be cleared.'))return;try{await resetDraft();status('Ready for a new session.');}catch(error){status(error.message,true);}};
 $('save-settings').onclick=async()=>{try{const value=$('worker-url').value.trim();if(value){const url=new URL(value);if(url.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');if(url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('Enter the Worker origin only, without a path or credentials.');}await write('worker-url',value);status('Connection setting saved on this device.');}catch(error){status(error.message,true);}};
-$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.6',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,pendingLibrarySave:!!libraryEditor.pending,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
+$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.7',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,pendingLibrarySave:!!libraryEditor.pending,pendingOrganizationSave:!!organizationEditor.pending,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
 window.addEventListener('online',async()=>{if(busy||!queue.length)return;busy=true;controls();try{await flushQueue();status('Pending entries synced to Google Sheets.');}catch(error){status(`Pending sync: ${error.message}`,true);}finally{busy=false;controls();}});
 async function restoreEarlierRecording(){
  const metadata=await read('recording');if(!metadata)return;const chunks=[];for(let i=0;i<metadata.count;i++){const chunk=await read(`audio-${metadata.id}-${i}`);if(chunk)chunks.push(chunk);}if(!chunks.length)return;
@@ -229,8 +240,8 @@ try{
  queue=await read('queue')||[];
  // Preserve unfinished saves made before explicit creation toggles existed.
  for(const entry of queue){if(!Object.hasOwn(entry,'_createTechnique'))entry._createTechnique=!!entry.technique_label;if(!Object.hasOwn(entry,'_createTakedown'))entry._createTakedown=!!entry.takedown_label;}
- workbook=await read('workbook')||null;for(const tab of new Set(['data','techniques','pearls',...Object.keys(workbook?.sheets||{})])){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
+ workbook=await read('workbook')||null;for(const tab of new Set(['data','techniques','pearls',...Object.values(ORG_TABS),...Object.keys(workbook?.sheets||{})])){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
  $('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;
  updateExistingOptions();fillFields();if(draft.reviewOpen)$('review').hidden=false;
- await restoreEarlierRecording();await libraryEditor.restore();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);else if(libraryEditor.pending)status('A library addition has a pending save. Open Techniques, Pearls, Fundamentals, or Strategy links and choose Resume pending save.');
+ await restoreEarlierRecording();await libraryEditor.restore();await organizationEditor.restore();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);else if(libraryEditor.pending)status('A library addition has a pending save. Open Techniques, Pearls, Fundamentals, or Strategy links and choose Resume pending save.');
 }catch(error){storageFailed=true;status('Local storage could not be loaded. Keep this page open and copy your words before leaving.',true);}

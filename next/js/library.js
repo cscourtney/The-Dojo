@@ -1,4 +1,5 @@
-import {normalize,positionKey,techniqueName,canonicalMapKey,sortedEntries} from './journal.js?v=9';
+import {categoryDefinitions,categoryName,ORG_TABS} from './organization.js?v=12';
+import {normalize,positionKey,techniqueName,canonicalMapKey,sortedEntries} from './journal.js?v=12';
 export const keyForTechnique=row=>normalize(techniqueName(row))+'|'+positionKey(row.position);
 export const isReference=row=>['fundamental','reference'].includes(row.entry_type);
 export const isDirectID=id=>String(id||'').startsWith('direct:');
@@ -22,6 +23,10 @@ export function libraryPearls(snapshots){
  for(const row of snapshots.data?.rows||[])for(const pearl of String(row.pearls||'').split('\n').map(s=>s.replace(/^\d+[.)]\s*/,'').trim()).filter(Boolean))add({date:row.date,gi:row.gi,pearl,entry_id:row.id,_source:'data'});
  return sortedEntries(rows);
 }
-export function categoryFor(row){return String(row.danaher_category||'').trim()||'Needs review';}
-export function categoriesFor(snapshots){return [...new Set([...libraryTechniques(snapshots).map(categoryFor),'Submissions','Self Defense','Needs review'])].sort((a,b)=>a==='Needs review'?1:b==='Needs review'?-1:a.localeCompare(b));}
+export function categoryFor(row,snapshots={}){return categoryName(row.danaher_category,snapshots);}
+export function categoriesFor(snapshots){
+ const definitions=categoryDefinitions(snapshots);const observed=[...new Set(libraryTechniques(snapshots).map(row=>categoryFor(row,snapshots)))];
+ if(snapshots[ORG_TABS.categories]&&!snapshots[ORG_TABS.categories].missing)return [...new Set([...definitions.map(row=>row.label),...observed.filter(label=>!definitions.some(row=>row.label===label)).sort()])];
+ return [...new Set([...observed,'Submissions','Self Defense','Needs review'])].sort((a,b)=>a==='Needs review'?1:b==='Needs review'?-1:a.localeCompare(b));
+}
 export function mappedRecords(snapshots){return [...(snapshots.techniques?.rows||[]),...(snapshots.data?.rows||[])].filter(row=>canonicalMapKey(row.map_node));}

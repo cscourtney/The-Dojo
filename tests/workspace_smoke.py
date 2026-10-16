@@ -4,6 +4,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
 from pypdf import PdfReader
 import fitz
+import json
 
 def main():
  tables={
@@ -18,6 +19,13 @@ def main():
  "Coach's notes":[['note','','note'],['CUSTOM TAB FIRST VALUE','UNNAMED PRIVATE CELL','CUSTOM TAB SECOND VALUE']],
  'readable':[['session','text'],['new','Generated formatted session view']]
  }
+ reference=json.loads(Path('/workspace/The-Dojo/next/assets/strategy-layout.json').read_text())
+ aliases={'pull':'pull-guard','takedown':'takedowns','tddef':'takedown-defense','closed':'closed-guard','xguard':'x-guard','half':'half-guard','retention':'guard-retention','gpass':'guard-passing','side-top':'side-control','side-esc':'side-control-escape','mount-top':'mount','mount-esc':'mount-escape','back':'back-control','back-def':'back-defense','legs':'leg-locks','subs':'submissions'}
+ key=lambda value:aliases.get(value,value)
+ tables['dojo_categories']=[['id','label','sort_order','aliases','description'],['cat-passing','Passing skills','10','Guard passing',''],['cat-review','Needs review','20','','']]
+ tables['techniques'][0].append('danaher_category');tables['techniques'][1].append('Guard passing')
+ tables['dojo_map_nodes']=[['id','title','type','x','y','sort_order','notes']]+[[key(id),node['title'],node['type'],node['x'],node['y'],i*10,''] for i,(id,node) in enumerate(reference['nodes'].items())]
+ tables['dojo_map_edges']=[['id','from_node','to_node','label','sort_order','enabled']]+[[id+':'+to,key(id),key(to),'',0,'true'] for id,node in reference['nodes'].items() for to in node['goesTo']]
  tabnames=list(tables)
  calls=[]
  with sync_playwright() as p:
@@ -45,7 +53,7 @@ def main():
   page.locator('#connect').click();expect(page.locator('#status')).to_contain_text('Connected.')
   page.get_by_role('button',name='Class Prep',exact=True).click();expect(page.locator('#prep-content')).to_contain_text('Not loaded: goals, mistakes')
   assert page.evaluate('voiceCalls.filter(x=>x[0]==="speak").length')==0
-  page.locator('#prep-refresh').click();expect(page.locator('#workspace-status')).to_contain_text('Read 10 Sheet tabs')
+  page.locator('#prep-refresh').click();expect(page.locator('#workspace-status')).to_contain_text('Read 13 Sheet tabs')
   expect(page.locator('#prep-content')).to_contain_text('Keep guard retention deliberate');expect(page.locator('#prep-content')).to_contain_text('Keep chest connected');expect(page.locator('#prep-content')).not_to_contain_text('Do not speak completed')
   page.locator('#prep-play').click();expect(page.locator('#prep-playback')).to_contain_text('Playing');page.locator('#prep-pause').click();expect(page.locator('#prep-pause')).to_have_text('Resume');page.locator('#prep-pause').click();page.locator('#prep-stop').click();expect(page.locator('#prep-playback')).to_contain_text('stopped')
   page.get_by_role('button',name='Search history',exact=True).click();page.locator('#history-query').fill('back control mistakes');expect(page.locator('#history-results')).to_contain_text('2020-01-01');expect(page.locator('#history-results')).to_contain_text('Keyword retrieval, not an AI interpretation')
@@ -60,7 +68,10 @@ def main():
   for value in ['TEST FIXTURE','Training Journal','Technique Library','Pearls','Index','CUSTOM TAB FIRST VALUE','CUSTOM TAB SECOND VALUE','UNNAMED PRIVATE CELL','Paraná','PRINTABLE UNIQUE WORD','Generated formatted session view']:assert value in content,value
   assert len(pdf.pages)>10 and len(pdf.outline)>=10
   assert all(content.count(word)==150 for word in ['PRINTABLE','UNIQUE','WORD'])  # Line/page breaks split phrases, but no words may be lost.
+  landscape=[p for p in pdf.pages if p.mediabox.width>p.mediabox.height];assert len(landscape)==1;assert 'Strategy Map' in landscape[0].extract_text();assert len(landscape[0]['/Annots'])>=21
+  assert 'Techniques · Passing skills' in content
   rendered=fitz.open('/tmp/dojo-notebook-fixture.pdf')
+  title_pixels=rendered[0].get_pixmap(clip=fitz.Rect(50,140,300,215));assert sum(1 for i in range(0,len(title_pixels.samples),3) if max(title_pixels.samples[i:i+3])<120)>700, 'Cover heading glyphs must render visibly, not only extract as text'
   for pdfpage in rendered:
    for block in pdfpage.get_text('dict')['blocks']:
     for line in block.get('lines',[]):

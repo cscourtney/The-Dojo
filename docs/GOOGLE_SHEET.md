@@ -167,3 +167,11 @@ Bound to the Sheet (Extensions → Apps Script). Their source is **not** in the 
 3. GCP → APIs & Services → enable Google Sheets API → OAuth consent screen (External, Production) → Credentials → OAuth client ID (Web) → add authorized JS origins.
 4. Put the Sheet ID and client ID in the app's config constants (`GS_SHEET_ID`, `GS_CLIENT_ID`).
 5. Open the app on the https URL, sign in with the right Google account, save a test entry, confirm it lands in `data`, `techniques`, `pearls`.
+
+## 7. Current `/next/` organization tables (user-authorized setup)
+
+The new app creates `dojo_categories` (`id, label, sort_order, aliases, description`), `dojo_map_nodes` (`id, title, type, x, y, sort_order, notes`), and `dojo_map_edges` (`id, from_node, to_node, label, sort_order, enabled`) on first organization setup or notebook build. See `next/SETUP.md` for the editor and migration behavior. These tables are the source of truth for category definitions/order and map geometry/connections. Existing `gameplan` data is never overwritten.
+
+Category references in existing `danaher_category` cells can match a definition's ID, label, or pipe-separated aliases. Renaming a category preserves its previous label as an alias. Stable map-node IDs are referenced by `map_node`, `from_node`, and `to_node`. Keep IDs stable when editing in Sheets; edit display names instead. Order is numeric `sort_order`, not physical row order. Map coordinates are numbers from 0 to 10000. Type is `o` (offense), `d` (defense), or `n` (neutral). Set a connection's enabled field to false to hide it without removing its source record.
+
+Normal library writes still validate existing headers. Only the authorized setup adds a missing `techniques.danaher_category` header, after all populated columns so unnamed data is preserved. All original workbook and organization cells are exported in the notebook, along with a derived linked landscape map and category-ordered technique chapters.

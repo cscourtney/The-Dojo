@@ -15,7 +15,9 @@ def main():
   aliases={'Technique Name':'label','Created At':'created_at','Position':'position','Description':'description','Date':'date','Gi':'gi','ID':'id','Map Node':'map_node','Danaher Category':'danaher_category','Pearls':'pearl','Entry ID':'entry_id'}
   return [dict(zip([aliases.get(h,h) for h in tables[tab][0]],row)) for row in tables[tab][1:]]
  def sheet(route):
-  req=route.request;segment=unquote(urlparse(req.url).path.split('/values/')[1]);tab=segment.split('!')[0]
+  req=route.request
+  if '/values/' not in urlparse(req.url).path:return route.fulfill(json={'sheets':[{'properties':{'title':name,'sheetId':i}} for i,name in enumerate(tables)]})
+  segment=unquote(urlparse(req.url).path.split('/values/')[1]);tab=segment.split('!')[0]
   if req.method=='POST':
    tables[tab].append(req.post_data_json['values'][0]);writes.append(tab)
    if fail['readback']:fail['afterwrite']=True

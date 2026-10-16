@@ -1,18 +1,20 @@
-import {canonicalMapKey} from './journal.js?v=5';
+import {sheetLayout} from './organization.js?v=12';
+import {canonicalMapKey} from './journal.js?v=12';
 const NS='http://www.w3.org/2000/svg';
 const create=(tag,attrs={})=>{const element=document.createElementNS(NS,tag);for(const [key,value]of Object.entries(attrs))element.setAttribute(key,value);return element;};
 export class StrategyMap{
- constructor({viewport,holder,select,zoomIn,zoomOut,fit,onSelect}){Object.assign(this,{viewport,holder,select,onSelect});this.scale=1;this.layout=null;this.snapshot={};this.selected='';zoomIn.onclick=()=>this.zoom(this.scale+.15);zoomOut.onclick=()=>this.zoom(this.scale-.15);fit.onclick=()=>this.zoom(Math.min(1,(this.viewport.clientWidth-20)/1900));select.onchange=()=>{if(select.value)this.onSelect(select.value);};}
- async load(){if(this.layout)return;const response=await fetch('./assets/strategy-layout.json');if(!response.ok)throw new Error('The reference map layout could not load. The strategy links below are still available.');this.layout=await response.json();this.draw();}
- zoom(scale){this.scale=Math.max(.35,Math.min(1.5,scale));if(this.canvas){this.canvas.style.transform=`scale(${this.scale})`;this.holder.style.width=1900*this.scale+'px';this.holder.style.height=1050*this.scale+'px';}}
- update(snapshots,selected=''){this.snapshot=snapshots;this.selected=canonicalMapKey(selected);if(this.layout)this.draw();}
+ constructor({viewport,holder,select,zoomIn,zoomOut,fit,onSelect}){Object.assign(this,{viewport,holder,select,onSelect});this.scale=1;this.layout=null;this.snapshot={};this.selected='';zoomIn.onclick=()=>this.zoom(this.scale+.15);zoomOut.onclick=()=>this.zoom(this.scale-.15);fit.onclick=()=>this.zoom(Math.min(1,(this.viewport.clientWidth-20)/(this.layout?.width||1900)));select.onchange=()=>{if(select.value)this.onSelect(select.value);};}
+ async load(){const saved=sheetLayout(this.snapshot);if(saved){this.layout=saved;this.draw();return;}if(this.layout&&this.layout.source!=='Google Sheets')return;const response=await fetch('./assets/strategy-layout.json');if(!response.ok)throw new Error('The reference map layout could not load. The strategy links below are still available.');this.layout={...await response.json(),width:1900,height:1050};this.draw();}
+ zoom(scale){this.scale=Math.max(.35,Math.min(1.5,scale));if(this.canvas){this.canvas.style.transform=`scale(${this.scale})`;this.holder.style.width=(this.layout?.width||1900)*this.scale+'px';this.holder.style.height=(this.layout?.height||1050)*this.scale+'px';}}
+ update(snapshots,selected=''){this.snapshot=snapshots;this.selected=canonicalMapKey(selected);try{const saved=sheetLayout(snapshots);if(saved)this.layout=saved;if(this.layout)this.draw();}catch(error){this.layout=null;this.holder.textContent=error.message;this.select.replaceChildren();}}
  draw(){
   const nodes=this.layout.nodes;const counts=new Map();
   for(const tab of ['data','techniques'])for(const row of this.snapshot[tab]?.rows||[]){const key=canonicalMapKey(row.map_node);if(key)counts.set(key,(counts.get(key)||0)+1);}
   const previous=this.select.value;this.select.replaceChildren();const empty=document.createElement('option');empty.value='';empty.textContent='Choose a position…';this.select.append(empty);
-  this.holder.replaceChildren();this.canvas=document.createElement('div');this.canvas.className='map-canvas';this.canvas.style.width='1900px';this.canvas.style.height='1050px';
-  const svg=create('svg',{viewBox:'0 0 1900 1050',width:1900,height:1050,'aria-hidden':'true'});const defs=create('defs');const marker=create('marker',{id:'map-arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'});marker.append(create('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#8b9c8c'}));defs.append(marker);svg.append(defs);
+  this.holder.replaceChildren();this.canvas=document.createElement('div');this.canvas.className='map-canvas';const width=this.layout.width||1900,height=this.layout.height||1050;this.canvas.style.width=width+'px';this.canvas.style.height=height+'px';
+  const svg=create('svg',{viewBox:`0 0 ${width} ${height}`,width,height,'aria-hidden':'true'});const defs=create('defs');const marker=create('marker',{id:'map-arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'});marker.append(create('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#8b9c8c'}));defs.append(marker);svg.append(defs);
   for(const [id,node]of Object.entries(nodes))for(const target of node.goesTo||[]){const next=nodes[target];if(!next)continue;const x=node.x+180,y=node.y+38,x2=next.x,y2=next.y+38;svg.append(create('path',{d:`M ${x} ${y} C ${x+90} ${y}, ${x2-90} ${y2}, ${x2} ${y2}`,fill:'none',stroke:'#a7b3a5','stroke-width':1.5,'marker-end':'url(#map-arrow)'}));}
+  for(const edge of this.layout.edges||[]){if(!edge.label)continue;const a=nodes[edge.from_node],b=nodes[edge.to_node];if(!a||!b)continue;const text=create('text',{x:(a.x+180+b.x)/2,y:(a.y+b.y)/2+30,'font-size':12,fill:'#455641'});text.textContent=edge.label;svg.append(text);}
   this.canvas.append(svg);
   for(const [id,node]of Object.entries(nodes)){
    const key=canonicalMapKey(id),count=counts.get(key)||0;const option=document.createElement('option');option.value=key;option.textContent=node.title+(count?' · '+count+' links':'');this.select.append(option);

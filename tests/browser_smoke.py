@@ -18,7 +18,9 @@ def main():
   tables['techniques'][1].extend(['reference','reference'])
   fail={'pearl':True};writes=[];requests=[]
   def sheet(route):
-   request=route.request;requests.append(request.url);segment=unquote(urlparse(request.url).path.split('/values/')[1]);tab=segment.split('!')[0]
+   request=route.request;requests.append(request.url)
+   if '/values/' not in urlparse(request.url).path:return route.fulfill(json={'sheets':[{'properties':{'title':name,'sheetId':i}} for i,name in enumerate(tables)]})
+   segment=unquote(urlparse(request.url).path.split('/values/')[1]);tab=segment.split('!')[0]
    if request.method!='POST' and tab=='techniques' and fail.get('read-techniques'):
     return route.fulfill(status=500,json={'error':'simulated read failure'})
    if request.method=='POST':

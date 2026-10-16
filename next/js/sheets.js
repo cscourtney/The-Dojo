@@ -1,4 +1,4 @@
-import {sameTechnique,canonicalMapKey} from './journal.js?v=9';
+import {sameTechnique,canonicalMapKey} from './journal.js?v=12';
 export const SHEET_ID = '11qPTV7nS28ZdK0Yd1kTAZVMot30lLA9024N1JeYlgwc';
 export const CLIENT_ID = '766609056854-bdk65cprg46q2sni85pr2kges9u18mfl.apps.googleusercontent.com';
 let token = '', expires = 0;
@@ -184,4 +184,58 @@ export async function readWorkbook() {
     sheets[tab]={...parsed,sheetId:metadata.sheets[index].properties.sheetId,rawValues:values,syncedAt:new Date().toISOString(),...(problems.some(problem=>problem.tab===tab)?{readProblem:true}:{} )};
   });
   return {complete:true,tabNames:tabs,title:metadata.properties?.title||'Dojo_Master',fetchedAt:new Date().toISOString(),sheets,problems};
+}
+
+// Organization is stored in dedicated tabs; the legacy gameplan tab is never replaced.
+export async function readOrganization(){
+ const {ORG_TABS}=await import('./organization.js?v=12');
+ const metadata=await request('?fields=sheets.properties');const names=new Set((metadata.sheets||[]).map(s=>s.properties.title));const snapshots={};
+ for(const tab of Object.values(ORG_TABS))if(!names.has(tab))snapshots[tab]={headers:[],rows:[],missing:true,stale:true};else{try{snapshots[tab]=await readTab(tab);}catch(error){snapshots[tab]={headers:[],rows:[],loadError:error.message,stale:true};}}
+ return snapshots;
+}
+export async function setupOrganization(workbook,reference){
+ const {ORG_HEADERS,organizationSeeds}=await import('./organization.js?v=12');
+ if(!workbook.complete)throw new Error('Read the complete workbook before setting up organization.');
+ if(['data','techniques'].some(tab=>workbook.sheets[tab]?.readProblem))throw new Error('Journal or technique headers could not be interpreted. Correct those headers before seeding organization; no organization tables were written.');
+ const seeds=organizationSeeds(workbook,reference);const metadata=await request('?fields=sheets.properties');const properties=(metadata.sheets||[]).map(s=>s.properties);const requests=[];const used=new Set(properties.map(p=>p.sheetId));
+ for(const [tab,headers]of Object.entries(ORG_HEADERS)){
+  if(properties.some(p=>p.title===tab)){const snapshot=await readTab(tab);requireHeaders(tab,snapshot,headers);continue;}
+  let sheetId;do{sheetId=Math.floor(Math.random()*2000000000)+1;}while(used.has(sheetId));used.add(sheetId);
+  requests.push({addSheet:{properties:{title:tab,sheetId}}});
+  const rows=[headers,...seeds[tab].map(row=>headers.map(key=>row[key]??''))].map(row=>({values:row.map(value=>({userEnteredValue:{stringValue:String(value)}}))}));
+  requests.push({updateCells:{start:{sheetId,rowIndex:0,columnIndex:0},rows,fields:'userEnteredValue'}});
+ }
+ if(requests.length){try{await request(':batchUpdate',{method:'POST',body:JSON.stringify({requests})});}catch(error){
+  // The batch may have committed before the connection failed. Verify all tabs before retrying.
+  const current=await readOrganization();if(!Object.keys(ORG_HEADERS).every(tab=>current[tab]&&!current[tab].loadError&&!current[tab].missing))throw error;
+ }}
+ // Add only the missing category header, beyond every populated source column.
+ const fresh=await request('/values/'+encodeURIComponent('techniques'));const raw=fresh.values||[];const snapshot=parseTab('techniques',raw);
+ if(!(snapshot.headerKeys||snapshot.headers).includes('danaher_category')){
+  const column=Math.max(...raw.map(row=>row.length),0)+1;
+  await request('/values/'+encodeURIComponent('techniques!'+columnName(column)+'1')+'?valueInputOption=RAW',{method:'PUT',body:JSON.stringify({values:[['danaher_category']]})});
+ }
+ const updated=await readOrganization();for(const [tab,headers]of Object.entries(ORG_HEADERS))requireHeaders(tab,updated[tab]||{headers:[]},headers);
+ return updated;
+}
+export async function saveOrganizationRecord(tab,object,{expected=null}={}){
+ const {ORG_HEADERS,ORG_TABS}=await import('./organization.js?v=12');const headers=ORG_HEADERS[tab];if(!headers)throw new Error('Unknown organization tab.');
+ if(!object.id)throw new Error('This record needs a stable ID.');
+ const fresh=await request('/values/'+encodeURIComponent(tab));const raw=fresh.values||[];const snapshot=parseTab(tab,raw);requireHeaders(tab,snapshot,headers);
+ const keyHeaders=snapshot.headerKeys||snapshot.headers;const idColumn=keyHeaders.indexOf('id');const matches=raw.slice(1).map((row,index)=>({row,index:index+2})).filter(item=>String(item.row[idColumn])===object.id);
+ if(matches.length>1)throw new Error('Duplicate organization IDs in the Sheet. Correct them before editing.');
+ const same=(a,b)=>headers.every(key=>String(a[key]??'')===String(b[key]??''));const current=snapshot.rows.find(row=>row.id===object.id);
+ if(current&&same(current,object))return snapshot;
+ if(expected&&(!current||!same(current,expected)))throw new Error('This record changed in another device or in the Sheet. Refresh organization before editing it again. Your draft is retained.');
+ if(!expected&&current)throw new Error('This ID already exists. Refresh and select the record to edit.');
+ if(tab===ORG_TABS.categories){if(!String(object.label||'').trim())throw new Error('Enter a category name.');if(snapshot.rows.some(row=>row.id!==object.id&&String(row.label).trim().toLowerCase()===String(object.label).trim().toLowerCase()))throw new Error('A category with that name already exists.');}
+ if(tab===ORG_TABS.nodes){if(!object.title||!['o','d','n'].includes(object.type)||!['x','y'].every(key=>Number.isFinite(Number(object[key]))&&Number(object[key])>=0&&Number(object[key])<=10000))throw new Error('Enter a title, type, and coordinates from 0 to 10000.');}
+ if(tab===ORG_TABS.edges){const nodes=await readTab(ORG_TABS.nodes);if(!nodes.rows.some(n=>n.id===object.from_node)||!nodes.rows.some(n=>n.id===object.to_node))throw new Error('Both connected positions must exist in the Sheet.');}
+ if(!current)await append(tab,snapshot,object);
+ else{
+  // Resolve the stable ID from fresh physical rows; update known cells only, preserving extra columns.
+  const data=headers.map(key=>({range:tab+'!'+columnName(keyHeaders.indexOf(key)+1)+matches[0].index,values:[[object[key]??'']]}));
+  await request('/values:batchUpdate',{method:'POST',body:JSON.stringify({valueInputOption:'RAW',data})});
+ }
+ const updated=await readTab(tab);if(!updated.rows.some(row=>row.id===object.id&&same(row,object)))throw new Error('Sheet read-back did not confirm this change. Retry the same draft.');return updated;
 }
