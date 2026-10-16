@@ -14,6 +14,7 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - Full-workbook keyword retrieval is implemented; it is not AI interpretation. Resource links come from the Sheet and must be specific lessons/videos; reject homepages and unsafe schemes.
 - The strategy diagram uses only the layout from the supplied reference map. Descriptions come from Sheet records, with old node IDs normalized for reading. Do not claim diagram editing or gameplan-layout sync works.
 - Notebook export reads all Sheet tabs in the signed-in browser. PDF/HTML generation is local; never commit private workbook data or call a third-party PDF service. Preserve unnamed/duplicate-column cells in the book even if a tab cannot be interpreted by app views. Do not call a test-fixture PDF the user's book.
+- App appearance: warm paper, Caveat only for The Dojo branding/title, clean system text for navigation, forms, headings, and entries. Preserve the original artwork.
 - Notebook appearance: user selected option A (Patrick Hand body, Caveat headings, warm unlined paper). Keep Back to contents on every PDF page and the white-background print option.
 - Next phases: full-history AI Sensei interpretation, Sheet-backed map editing, saved-entry editing, resource editing, and PWA/offline shell. Do not expose nonworking AI endpoints or invent Sheet schemas.
 - Sheet contract: `docs/GOOGLE_SHEET.md`. The uploaded handoff is historical context, not proof of deployed behavior; its private planning notes are not part of the public test release.
