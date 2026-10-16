@@ -11,6 +11,11 @@ def main():
   old={'id':'older-session','date':'2026-09-01','entry_type':'class','gi':'nogi','lesson':'Old focus','standup':'Old standup','technique':'Old detailed technique','rolls':'Old rolling notes','pearls':'Old pearl','fundamentals':'Old frames','notes':'Old additional notes','created_at':'2026-09-01T12:00:00Z','position':'side-control','technique_label':'Kimura','map_node':'side-control'}
   headers=list(reversed(HEADERS))
   tables={'data':[headers,[old.get(k,'') for k in headers]],'techniques':[['description','id','label','position','map_node','date','gi','created_at'],['Old detailed technique','older-session_tech','Kimura','side-control','side-control','2026-09-01','nogi','2026-09-01T12:00:00Z']],'pearls':[['pearl','entry_id','date','gi','created_at'],['Old pearl','older-session','2026-09-01','nogi','2026-09-01T12:00:00Z']]}
+  # Blank physical columns and harmless duplicate extra headings must not prevent loading.
+  for row in tables['techniques']:
+   row.insert(1,'')
+  tables['techniques'][0].extend(['category','category'])
+  tables['techniques'][1].extend(['reference','reference'])
   fail={'pearl':True};writes=[];requests=[]
   def sheet(route):
    request=route.request;requests.append(request.url);segment=unquote(urlparse(request.url).path.split('/values/')[1]);tab=segment.split('!')[0]
@@ -56,7 +61,7 @@ def main():
   page.locator('#recent-list').get_by_role('link',name='Knee slice',exact=True).click()
   expect(page.locator('#knowledge-list')).to_contain_text('Knee slice with an underhook')
   page.locator('#knowledge-list').get_by_role('link',name='Strategy: Guard Passing').click();expect(page.locator('#knowledge-list')).to_contain_text('Knee slice with an underhook')
-  page.get_by_role('button',name='Pearls',exact=True).click();expect(page.locator('#knowledge-list')).to_contain_text('Keep the underhook.')
+  page.get_by_role('button',name='Pearls',exact=True).click();expect(page.locator('#knowledge-list')).to_contain_text('Keep the underhook.');expect(page.locator('.pearl-list li').first).to_be_visible();assert page.locator('.pearl-list li').first.evaluate("el=>getComputedStyle(el).display")=='list-item'
   page.get_by_role('button',name='Fundamentals',exact=True).click();expect(page.locator('#knowledge-list')).to_contain_text('Control before advancing.')
   page.locator('#knowledge-list').get_by_role('link',name='Open journal entry').first.click();expect(page.locator('#recent-list')).to_contain_text('Control before advancing.')
   page.get_by_role('button',name='Journal',exact=True).click()
@@ -90,7 +95,14 @@ def main():
   other=browser.new_context()
   other.add_init_script("window.google={accounts:{oauth2:{initTokenClient:c=>({requestAccessToken:()=>c.callback({access_token:'test-only',expires_in:3600})})}}};")
   other.route('https://sheets.googleapis.com/**',sheet);other.route('https://fonts.googleapis.com/**',lambda r:r.abort());other.route('https://accounts.google.com/**',lambda r:r.abort())
-  second=other.new_page();second.goto('http://127.0.0.1:8000/next/');second.locator('#connect').click();expect(second.locator('#recent-list')).to_contain_text('Repeat passing');second.get_by_role('button',name='Fundamentals',exact=True).click();expect(second.locator('#knowledge-list')).to_contain_text('Keep a frame');other.close()
+  second=other.new_page();second.goto('http://127.0.0.1:8000/next/');second.locator('#connect').click();expect(second.locator('#recent-list')).to_contain_text('Repeat passing');second.get_by_role('button',name='Fundamentals',exact=True).click();expect(second.locator('#knowledge-list')).to_contain_text('Keep a frame')
+  for label,width,height in [('phone',390,844),('ipad-portrait',768,1024),('ipad-landscape',1024,768)]:
+   second.set_viewport_size({'width':width,'height':height})
+   for section in ['Journal','Techniques','Pearls','Fundamentals','Strategy links']:
+    second.get_by_role('button',name=section,exact=True).click()
+    assert second.evaluate('document.documentElement.scrollWidth<=innerWidth'),(label,section)
+    if section in ['Journal','Pearls']:second.screenshot(path=f'/tmp/dojo-{label}-{section.lower()}.png',full_page=True)
+  other.close()
   # A deleted library record must not turn an existing-technique link into implicit creation.
   page.locator('#existing-technique').select_option('knee slice|guard-passing');page.locator('#technique').fill('Existing linked technique practice')
   removed=tables['techniques'].pop(2);before=len(writes);page.locator('#save').click();expect(page.locator('#status')).to_contain_text('linked technique is no longer in the Sheet');assert len(writes)==before

@@ -26,6 +26,7 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - Keep the old app usable. The user authorized publishing updates to the separate `/next/` test app. Run checks first; do not change the original app or Cloudflare service as part of frontend updates.
 - Local checks: serve repo with `python -m http.server 8000 --bind 127.0.0.1 --directory /workspace/The-Dojo`.
 - `node tests/worker.test.mjs`
+- `node tests/sheet_headers.test.mjs`
 - `python tests/browser_smoke.py`
 - Python browser checks require Playwright and Chromium, available in the prepared cloud environment. External APIs in these tests are mocked; never describe them as live validation.
 - After HTML structure changes, check div balance and JavaScript syntax. Browser interactions must also pass.

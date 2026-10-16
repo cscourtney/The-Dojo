@@ -1,7 +1,7 @@
 import {read,write,remove} from './store.js';
-import {connect,disconnect,accessToken,ensureAccess,readTab,syncEntry} from './sheets.js?v=3';
+import {connect,disconnect,accessToken,ensureAccess,readTab,syncEntry} from './sheets.js?v=4';
 import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey} from './journal.js?v=3';
-import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=3';
+import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=4';
 const $=id=>document.getElementById(id);
 let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='';
 let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;

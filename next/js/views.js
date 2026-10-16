@@ -44,7 +44,7 @@ export function renderKnowledge(view,snapshots,{filter='',selected='',cached=fal
    const nodes=[...new Set([...rows,...linked].map(row=>row.map_node).filter(Boolean))];for(const node of nodes)links.append(link('Strategy: '+nodeLabel(node),'strategy',node));card.append(links);list.append(card);
   }
  }else if(view==='pearls'){
-  const seen=new Set();for(const row of pearls){if(selected&&row.entry_id!==selected)continue;if(!matches(row)||!row.pearl)continue;const key=String(row.entry_id)+'|'+row.pearl+'|'+row.date;if(seen.has(key))continue;seen.add(key);count++;const card=element('article',undefined,'session');card.append(element('small',row.date||'Undated'),element('p',row.pearl));if(row.entry_id)card.append(link('Open journal entry','journal',row.entry_id));list.append(card);}
+  const seen=new Set();for(const row of pearls){if(selected&&row.entry_id!==selected)continue;if(!matches(row)||!row.pearl)continue;const key=String(row.entry_id)+'|'+row.pearl+'|'+row.date;if(seen.has(key))continue;seen.add(key);count++;const card=element('article',undefined,'session');const bullets=element('ul',undefined,'pearl-list');bullets.append(element('li',row.pearl));card.append(element('small',row.date||'Undated'),bullets);if(row.entry_id)card.append(link('Open journal entry','journal',row.entry_id));list.append(card);}
  }else if(view==='fundamentals'){
   for(const row of data){if(!row.fundamentals||(selected&&row.id!==selected)||!matches(row))continue;count++;const card=element('article',undefined,'session');card.append(element('small',metadata(row)),element('p',row.fundamentals),link('Open journal entry','journal',row.id));list.append(card);}
  }else{

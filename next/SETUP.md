@@ -50,6 +50,7 @@ Run:
 
 ```sh
 node tests/worker.test.mjs
+node tests/sheet_headers.test.mjs
 python tests/browser_smoke.py
 ```
 
@@ -67,7 +68,7 @@ The prepared environment has Node, Python Playwright, and `/usr/bin/chromium`. B
 
 ## Recovery and limitations
 
-- The current header row drives every read and append. Missing/duplicate headers stop a write. The app does not change Sheet schemas automatically.
+- The current header row drives every read and append. Blank headings are ignored during reads while physical column positions are retained. Harmless duplicate headings can be read; conflicting duplicate values report the exact heading and columns. Missing or duplicated required writable headings stop a save before any write. The app does not change Sheet schemas automatically.
 - Original recap text is appended to `notes` with an `Original recap:` marker.
 - Pending entry and subsidiary writes are completed only after read-back of every affected tab. IDs reconcile retries; pearls use `(entry_id, pearl)`.
 - Google Sheets has no atomic unique constraint. Simultaneous creation/retry in multiple tabs/devices is not guaranteed duplicate-free. The local pending queue is device-specific.

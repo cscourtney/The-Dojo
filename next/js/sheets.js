@@ -57,10 +57,27 @@ async function request(path, options = {}) {
 }
 export async function readTab(tab) {
   const result = await request(`/values/${encodeURIComponent(tab)}`);
-  const [raw = [], ...rows] = result.values || [];
-  const headers = raw.map(h => String(h).trim());
-  if (!headers.length || new Set(headers).size !== headers.length || headers.some(h => !h)) throw new Error(`${tab}: missing, blank, or duplicate headers. No rows were written.`);
-  return {headers, rows: rows.map(row => Object.fromEntries(headers.map((h,i) => [h, row[i] ?? ''])))};
+  return parseTab(tab, result.values || []);
+}
+export function parseTab(tab, values) {
+  const [raw = [], ...rows] = values;
+  const headers = raw.map(h => String(h ?? '').trim());
+  if (!headers.some(Boolean)) throw new Error(`${tab}: the first row has no named headers.`);
+  const columns = new Map();
+  headers.forEach((header,index) => { if(header){if(!columns.has(header))columns.set(header,[]);columns.get(header).push(index);} });
+  const duplicateHeaders = [...columns].filter(([,indices]) => indices.length > 1).map(([header]) => header);
+  // Keep physical column positions, including unnamed columns, for positional appends.
+  // Empty headings are ignored on reads; harmless duplicate columns can still be read.
+  const records = rows.map((row,index) => {
+    const record = {};
+    for(const [header,indices] of columns){
+      const present = [...new Set(indices.map(i => row[i] ?? '').filter(value => value !== ''))];
+      if(present.length > 1) throw new Error(`${tab}: repeated header "${header}" in columns ${indices.map(i=>columnName(i+1)).join(', ')} has conflicting values at row ${index+2}. No Sheet data was changed.`);
+      record[header] = present[0] ?? '';
+    }
+    return record;
+  });
+  return {headers,rows:records,duplicateHeaders};
 }
 function columnName(number) {
   let name = '';
@@ -68,11 +85,13 @@ function columnName(number) {
   return name;
 }
 async function append(tab, snapshot, object) {
-  const values = snapshot.headers.map(header => object[header] ?? '');
+  const values = snapshot.headers.map(header => header ? object[header] ?? '' : '');
   await request(`/values/${encodeURIComponent(`${tab}!A:${columnName(snapshot.headers.length)}`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {method:'POST', body:JSON.stringify({values:[values]})});
 }
 function requireHeaders(tab, snapshot, names) {
   const missing = names.filter(name => !snapshot.headers.includes(name));
+  const duplicates = (snapshot.duplicateHeaders || []).filter(header=>names.includes(header));
+  if(duplicates.length) throw new Error(`${tab}: repeated writable headers ${duplicates.join(', ')}. Reading is safe, but saving is paused to avoid writing to an ambiguous column. No rows were written.`);
   if (missing.length) throw new Error(`${tab}: missing headers ${missing.join(', ')}. Correct the Sheet headers before retrying; no automatic schema changes were made.`);
 }
 // Read current headers for every save. A timeout is reconciled by stable IDs on retry.
