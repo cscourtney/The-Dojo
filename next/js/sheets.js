@@ -57,7 +57,7 @@ async function request(path, options = {}) {
 }
 export async function readTab(tab) {
   const result = await request(`/values/${encodeURIComponent(tab)}`);
-  return parseTab(tab, result.values || []);
+  return {...parseTab(tab, result.values || []),syncedAt:new Date().toISOString()};
 }
 export function parseTab(tab, values) {
   const [raw = [], ...rows] = values;
@@ -128,4 +128,23 @@ export async function syncEntry(entry) {
   for (const tab of Object.keys(snapshots)) updated[tab] = await readTab(tab);
   if (!updated.data.rows.some(row => row.id === entry.id) || techniques.some(t => !updated.techniques.rows.some(row => row.id === t.id || sameTechnique(row,t))) || pearls.some(p => !updated.pearls.rows.some(row => row.entry_id === entry.id && row.pearl === p))) throw new Error('Sheet read-back did not confirm every saved row. Retry safely to reconcile this entry.');
   return updated;
+}
+
+// Read every tab through the signed-in browser. Credentials never leave the normal Google route.
+export async function readWorkbook() {
+  const metadata=await request('?fields=properties.title,sheets.properties');
+  const tabs=(metadata.sheets||[]).map(sheet=>sheet.properties?.title).filter(Boolean);
+  if(!tabs.length)throw new Error('Google returned no Sheet tabs. No export was created.');
+  const parameters=new URLSearchParams({majorDimension:'ROWS',valueRenderOption:'FORMATTED_VALUE'});
+  for(const tab of tabs)parameters.append('ranges',"'"+tab.replace(/'/g,"''")+"'");
+  const response=await request('/values:batchGet?'+parameters.toString());
+  if((response.valueRanges||[]).length!==tabs.length)throw new Error('The workbook response was incomplete. Retry before exporting.');
+  const sheets={};const problems=[];
+  tabs.forEach((tab,index)=>{
+    const values=response.valueRanges[index].values||[];
+    let parsed;
+    try{parsed=parseTab(tab,values);}catch(error){problems.push({tab,message:error.message});parsed={headers:values[0]||[],rows:[]};}
+    sheets[tab]={...parsed,sheetId:metadata.sheets[index].properties.sheetId,rawValues:values,syncedAt:new Date().toISOString(),...(problems.some(problem=>problem.tab===tab)?{readProblem:true}:{} )};
+  });
+  return {complete:true,tabNames:tabs,title:metadata.properties?.title||'Dojo_Master',fetchedAt:new Date().toISOString(),sheets,problems};
 }

@@ -44,3 +44,6 @@ function dateKey(value) {
 }
 export function localToday(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 export function newDraft(){return {id:crypto.randomUUID(),date:localToday(),entry_type:'class',gi:'gi',transcript:'',fields:{},links:{createTechnique:false,createTakedown:false,linkMap:false}};}
+
+const MAP_ALIASES={pull:'pull-guard',takedown:'takedowns',tddef:'takedown-defense',closed:'closed-guard',xguard:'x-guard',half:'half-guard',retention:'guard-retention',gpass:'guard-passing','side-top':'side-control','side-esc':'side-control-escape','mount-top':'mount','mount-esc':'mount-escape',back:'back-control','back-def':'back-defense',legs:'leg-locks',subs:'submissions'};
+export function canonicalMapKey(value){const key=normalize(value);return MAP_ALIASES[key]||key;}

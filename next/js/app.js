@@ -1,10 +1,13 @@
+import {makeBookModel,notebookHTML} from './book-model.js?v=5';
+import {StrategyMap} from './strategy-map.js?v=5';
+import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=5';
 import {read,write,remove} from './store.js';
-import {connect,disconnect,accessToken,ensureAccess,readTab,syncEntry} from './sheets.js?v=4';
-import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey} from './journal.js?v=3';
-import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=4';
+import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry} from './sheets.js?v=5';
+import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=5';
+import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=5';
 const $=id=>document.getElementById(id);
 let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='';
-let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
+let workbook=null;let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
 function status(message,error=false){
  for(const id of ['status','review-status']){ $(id).hidden=false;$(id).textContent=message;$(id).classList.toggle('error',error); }
  if(view!=='journal'){ $('workspace-status').hidden=false;$('workspace-status').textContent=message;$('workspace-status').classList.toggle('error',error); }
@@ -70,7 +73,7 @@ function updateExistingOptions(){
   setValue(id,previous||draft.links?.[isTakedown?'existingTakedown':'existingTechnique']||'');
  }
 }
-function controls(){const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
+function controls(){const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect','prep-refresh','search-refresh','resources-refresh','book-build','book-html'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
 $('entry-form').addEventListener('input',()=>{formVisibility();changed();});
 $('transcript').addEventListener('input',changed);
 for(const [checkbox,existing]of [['new-technique','existing-technique'],['new-takedown','existing-takedown']])$(checkbox).addEventListener('change',()=>{if($(checkbox).checked)$(existing).value='';formVisibility();changed();});
@@ -96,16 +99,65 @@ $('organize').onclick=async()=>{
   draft.transcript=transcript;await persistDraft();review();status('Ready to review. Use New Technique or New Takedown only when adding a library entry.');
  }catch(error){status(`Organize recap: ${error.message}`,true);}finally{busy=false;controls();}
 };
+const strategyMap=new StrategyMap({viewport:$('map-viewport'),holder:$('map-holder'),select:$('map-position'),zoomIn:$('map-in'),zoomOut:$('map-out'),fit:$('map-fit'),onSelect:key=>{location.hash='strategy/'+encodeURIComponent(key);}});
+const playback=new PrepPlayback({select:$('prep-voice'),state:$('prep-playback'),play:$('prep-play'),pause:$('prep-pause'),stop:$('prep-stop')});
 function render(){
- const journal=view==='journal';$('journal-view').hidden=!journal;$('knowledge-view').hidden=journal;
+ const journal=view==='journal',knowledge=['techniques','pearls','fundamentals','strategy'].includes(view);
+ $('journal-view').hidden=!journal;$('knowledge-view').hidden=!knowledge;$('strategy-map').hidden=view!=='strategy';if(view==='strategy'){strategyMap.update(snapshots,selected);strategyMap.load().catch(error=>status(error.message,true));}
+ for(const type of ['prep','search','resources','notebook'])$(type+'-view').hidden=view!==type;
  for(const button of document.querySelectorAll('[data-view]')){if(button.dataset.view===view)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
- if(journal){const count=renderJournal(snapshots.data,{filter:$('journal-filter').value,type:$('journal-type').value,limit,selected});$('recent-state').textContent=`${cached?'Cached on this device':'From Google Sheets'} · ${count} sessions`;}else renderKnowledge(view,snapshots,{filter:$('knowledge-filter').value,selected,cached:cached||!!(view==='pearls'?snapshots.pearls?.stale:view==='techniques'?snapshots.techniques?.stale:view==='fundamentals'?snapshots.data?.stale:snapshots.techniques?.stale||snapshots.data?.stale)});
+ if(journal){const count=renderJournal(snapshots.data,{filter:$('journal-filter').value,type:$('journal-type').value,limit,selected});$('recent-state').textContent=`${cached?'Cached on this device':'From Google Sheets'} · ${count} sessions`;}
+ else if(knowledge)renderKnowledge(view,snapshots,{filter:$('knowledge-filter').value,selected,cached:cached||!!(view==='pearls'?snapshots.pearls?.stale:view==='techniques'?snapshots.techniques?.stale:view==='fundamentals'?snapshots.data?.stale:snapshots.techniques?.stale||snapshots.data?.stale)});
+ else if(view==='prep'){const prep=renderPrep($('prep-content'),snapshots);playback.update(prep.text);}
+ else if(view==='search')renderSearch($('history-results'),snapshots,$('history-query').value);
+ else if(view==='resources')renderResources($('resource-list'),snapshots,$('resource-query').value);
  updateExistingOptions();
 }
-function route(){const [target,...parts]=location.hash.slice(1).split('/');view=['journal','techniques','pearls','fundamentals','strategy'].includes(target)?target:'journal';try{selected=decodeURIComponent(parts.join('/'));}catch{selected='';}if(selected){$('journal-filter').value='';$('journal-type').value='';$('knowledge-filter').value='';}render();if(selected)$(view==='journal'?'recent-list':'knowledge-list').scrollIntoView({block:'start'});}
+function updateNavigation(){const nav=document.querySelector('.workspace-nav');const active=nav.querySelector('[aria-current=page]');$('nav-hint').hidden=nav.scrollWidth<=nav.clientWidth+2;if(active){const left=active.offsetLeft-nav.offsetLeft;if(left<nav.scrollLeft)nav.scrollLeft=left;else if(left+active.offsetWidth>nav.scrollLeft+nav.clientWidth)nav.scrollLeft=left+active.offsetWidth-nav.clientWidth;}}
+window.addEventListener('resize',updateNavigation);
+function route(){const previous=view;const [target,...parts]=location.hash.slice(1).split('/');view=['journal','techniques','pearls','fundamentals','strategy','prep','search','resources','notebook'].includes(target)?target:'journal';try{selected=decodeURIComponent(parts.join('/'));if(view==='strategy')selected=canonicalMapKey(selected);}catch{selected='';}if(selected){$('journal-filter').value='';$('journal-type').value='';$('knowledge-filter').value='';}if(previous==='prep'&&view!=='prep')playback.cancel();render();updateNavigation();if(selected)$(view==='journal'?'recent-list':'knowledge-list').scrollIntoView({block:'start'});}
 window.addEventListener('hashchange',route);
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{selected='';$('knowledge-filter').value='';if(location.hash==='#'+button.dataset.view)route();else location.hash=button.dataset.view;};
 $('journal-filter').oninput=()=>{selected='';limit=12;render();};$('journal-type').onchange=()=>{selected='';limit=12;render();};$('knowledge-filter').oninput=()=>{selected='';render();};$('more-sessions').onclick=()=>{limit+=12;render();};
+$('history-query').oninput=()=>renderSearch($('history-results'),snapshots,$('history-query').value);
+$('resource-query').oninput=()=>renderResources($('resource-list'),snapshots,$('resource-query').value);
+async function loadCompleteWorkbook(){
+ const latest=await readWorkbook();
+ for(const [tab,snapshot]of Object.entries(latest.sheets)){
+  if(snapshot.readProblem){if(snapshots[tab])snapshots[tab].stale=true;continue;}
+  await write('mirror-'+tab,snapshot);snapshots[tab]=snapshot;
+ }
+ await write('workbook',latest);workbook=latest;cached=false;render();return latest;
+}
+async function refreshAllSources(){
+ if(busy)return;busy=true;controls();status('Reading every tab from Google Sheets…');
+ try{
+  await ensureAccess();await flushQueue();const latest=await loadCompleteWorkbook();
+  status(`Read ${Object.keys(latest.sheets).length} Sheet tabs.${latest.problems.length?' Some tabs could not be interpreted for app views; their original cells are retained for notebook export: '+latest.problems.map(p=>p.tab).join(', '):''}`);
+ }catch(error){status(`Refresh sources: ${error.message}`,true);}finally{busy=false;controls();}
+}
+for(const id of ['prep-refresh','search-refresh','resources-refresh','book-build','book-html'])$(id).onclick=refreshAllSources;
+const bookURLs=[];
+function bookMessage(message,error=false){$('book-state').hidden=false;$('book-state').textContent=message;$('book-state').classList.toggle('error',error);}
+function bookDownload(bytes,type,name,label){const url=URL.createObjectURL(new Blob([bytes],{type}));bookURLs.push(url);const link=node('a',label);link.href=url;link.download=name;link.className='download-link';$('book-downloads').append(link);}
+async function buildNotebook(format){
+ if(busy)return;busy=true;controls();bookMessage('Connecting to Google and reading every Sheet tab…');
+ try{
+  await ensureAccess();await flushQueue();const latest=await loadCompleteWorkbook();
+  const stamp=localToday();
+  if(format==='pdf'){
+   const {createNotebookPDF}=await import('./book-pdf.js?v=5');
+   const result=await createNotebookPDF(latest,message=>bookMessage(message));
+   bookDownload(result.bytes,'application/pdf',`The-Dojo-Notebook-${stamp}.pdf`,'Download PDF notebook');
+   bookMessage(`Ready: ${result.pages} pages, ${result.model.tabCount} Sheet tabs, ${result.model.rowCount} original data rows. Snapshot ${latest.fetchedAt}. Use your PDF reader to search or print.`);
+  }else{
+   const model=makeBookModel(latest);bookDownload(notebookHTML(model),'text/html;charset=utf-8',`The-Dojo-Notebook-${stamp}.html`,'Download searchable HTML notebook');
+   bookMessage(`Ready: ${model.tabCount} Sheet tabs and ${model.rowCount} original data rows, with an index and search. Open the downloaded HTML file in a browser.`);
+  }
+ }catch(error){bookMessage(`Notebook export: ${error.message}`,true);}finally{busy=false;controls();}
+}
+$('book-build').onclick=()=>buildNotebook('pdf');$('book-html').onclick=()=>buildNotebook('html');
+window.addEventListener('pagehide',()=>{for(const url of bookURLs)URL.revokeObjectURL(url);playback.cancel(false);});
 async function loadWorkspace(){
  const data=await readTab('data');await write('mirror-data',data);snapshots.data=data;cached=false;render();
  const warnings=[];for(const tab of ['techniques','pearls'])try{const snapshot=await readTab(tab);await write('mirror-'+tab,snapshot);snapshots[tab]=snapshot;}catch(error){if(snapshots[tab])snapshots[tab].stale=true;warnings.push(`${tab}: ${error.message}`);}
@@ -151,7 +203,7 @@ $('entry-form').onsubmit=async event=>{
 };
 $('new-draft').onclick=async()=>{if(!confirm('Start a new draft? Pending saves are kept; this draft will be cleared.'))return;try{await resetDraft();status('Ready for a new session.');}catch(error){status(error.message,true);}};
 $('save-settings').onclick=async()=>{try{const value=$('worker-url').value.trim();if(value){const url=new URL(value);if(url.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');if(url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('Enter the Worker origin only, without a path or credentials.');}await write('worker-url',value);status('Connection setting saved on this device.');}catch(error){status(error.message,true);}};
-$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.3',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
+$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.5',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
 window.addEventListener('online',async()=>{if(busy||!queue.length)return;busy=true;controls();try{await flushQueue();status('Pending entries synced to Google Sheets.');}catch(error){status(`Pending sync: ${error.message}`,true);}finally{busy=false;controls();}});
 async function restoreEarlierRecording(){
  const metadata=await read('recording');if(!metadata)return;const chunks=[];for(let i=0;i<metadata.count;i++){const chunk=await read(`audio-${metadata.id}-${i}`);if(chunk)chunks.push(chunk);}if(!chunks.length)return;
@@ -163,7 +215,7 @@ try{
  queue=await read('queue')||[];
  // Preserve unfinished saves made before explicit creation toggles existed.
  for(const entry of queue){if(!Object.hasOwn(entry,'_createTechnique'))entry._createTechnique=!!entry.technique_label;if(!Object.hasOwn(entry,'_createTakedown'))entry._createTakedown=!!entry.takedown_label;}
- for(const tab of ['data','techniques','pearls']){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
+ workbook=await read('workbook')||null;for(const tab of new Set(['data','techniques','pearls',...Object.keys(workbook?.sheets||{})])){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
  $('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;
  updateExistingOptions();fillFields();if(draft.reviewOpen)$('review').hidden=false;
  await restoreEarlierRecording();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);

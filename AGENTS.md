@@ -9,8 +9,12 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - Native keyboard dictation or typing is the approved journal input. Do not restore app audio capture or add a transcription API without a new request. Earlier saved audio must remain recoverable until explicitly deleted.
 - Preserve the original journal labels/order and class/home drill/technique session structure. New Technique and New Takedown must be explicit choices; AI must never opt in to creation or map linking.
 - Repeating or linking an existing technique must not create a new library record. Name/position aliases are normalized for duplicate detection; do not merge differently named techniques by guesswork.
-- Pearls read the existing pearls tab; Fundamentals projects journal data. No new fundamentals tab. Strategy links group stored map references; the interactive map is not rebuilt yet.
-- Next phases (not implemented): full-history smart search, Class Prep, interactive strategy map, saved-entry editing. Do not add unrelated features during the logging phase.
+- Pearls read the existing pearls tab; Fundamentals projects journal data. No new fundamentals tab. Strategy links combine a read-only reference-layout diagram with actual linked descriptions from Sheets.
+- Class Prep is built from sourced Sheet records, with native speech playback and no AI call. Clearly label missing/stale sources; never autoplay. Screen-off playback is not verified.
+- Full-workbook keyword retrieval is implemented; it is not AI interpretation. Resource links come from the Sheet and must be specific lessons/videos; reject homepages and unsafe schemes.
+- The strategy diagram uses only the layout from the supplied reference map. Descriptions come from Sheet records, with old node IDs normalized for reading. Do not claim diagram editing or gameplan-layout sync works.
+- Notebook export reads all Sheet tabs in the signed-in browser. PDF/HTML generation is local; never commit private workbook data or call a third-party PDF service. Preserve unnamed/duplicate-column cells in the book even if a tab cannot be interpreted by app views. Do not call a test-fixture PDF the user's book.
+- Next phases: full-history AI Sensei interpretation, Sheet-backed map editing, saved-entry editing, resource editing, and PWA/offline shell. Do not expose nonworking AI endpoints or invent Sheet schemas.
 - Sheet contract: `docs/GOOGLE_SHEET.md`. The uploaded handoff is historical context, not proof of deployed behavior; its private planning notes are not part of the public test release.
 
 ## Data and infrastructure
@@ -27,7 +31,10 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - Local checks: serve repo with `python -m http.server 8000 --bind 127.0.0.1 --directory /workspace/The-Dojo`.
 - `node tests/worker.test.mjs`
 - `node tests/sheet_headers.test.mjs`
+- `node tests/insights.test.mjs`
+- `node tests/book_model.test.mjs`
 - `python tests/browser_smoke.py`
+- `python tests/workspace_smoke.py` (also validates generated PDF/HTML; needs pypdf and PyMuPDF, installed here)
 - Python browser checks require Playwright and Chromium, available in the prepared cloud environment. External APIs in these tests are mocked; never describe them as live validation.
 - After HTML structure changes, check div balance and JavaScript syntax. Browser interactions must also pass.
 - Final completion requires live HTTPS/iPad Safari testing by Chuck: native dictation, real AI interpretation, Sheet read-back, cross-device visibility. Distinguish implemented, locally tested, deployed, and iPad-verified.

@@ -1,6 +1,6 @@
-# The Dojo test app — journal and connected sections
+# The Dojo test app — training workspace
 
-Live test address: https://cscourtney.github.io/The-Dojo/next/
+Live test address: https://cscourtney.github.io/The-Dojo/next/?v=5
 
 The original root `The Dojo.html` is unchanged. Google Sheet Dojo_Master remains the source of truth across devices. Browser storage holds drafts, pending saves, and cached Sheet snapshots only.
 
@@ -23,9 +23,13 @@ Journal fields retain the original structure: Date, Session type, Gi/No-gi, Less
 - **Techniques**: reads the Sheet's `techniques` tab, groups historical instances by name/position, shows all their descriptions and linked sessions.
 - **Pearls**: reads `pearls`; journal saves append applicable pearls and links lead back to the source session.
 - **Fundamentals**: projects the existing `data.fundamentals` field. No new fundamentals tab or schema is introduced.
-- **Strategy links**: groups the persisted `map_node` references and opens linked descriptions. This is a useful list of strategy links, NOT a rebuilt interactive map. The original interactive map remains a later phase.
+- **Class Prep**: a sourced briefing built from active goals/mistakes, latest training, pearls, and fundamentals. One-tap native speech playback includes voice selection, Pause/Resume, Stop, and source links. Missing/cached sources are disclosed. No AI cost. It rebuilds from the latest loaded records when opened, including after journal saves.
+- **Strategy links**: a pannable/zoomable read-only diagram adapted from the supplied standalone map's layout. Tapping a node opens descriptions from linked Sheet journal/technique rows. Historical aliases (gpass, side-top, back, etc.) map to the existing canonical IDs without changing stored cells. The diagram does NOT yet save edits or render the gameplan tab's arbitrary schema.
+- **Resources**: reads the library tab; opens specific lessons/videos at saved timestamps. Bare-domain and invalid YouTube links show a correction notice instead of opening a homepage. No placeholder links are invented or deleted from the Sheet.
+- **Search history**: keyword/relevance retrieval across all successfully interpreted workbook tabs, with source links and dates. It can find old entries and mistakes; it is explicitly NOT an AI interpretation. The generated readable tab is excluded from search to avoid duplicating the journal, but included in the notebook.
+- **Notebook**: complete-workbook PDF and HTML exports generated privately in the browser. See below.
 
-Opening these sections does not request Google sign-in. Connect or Refresh reads the Sheet and refreshes the device cache. No training content is inserted as HTML.
+Opening these sections does not request Google sign-in. Connect/Refresh reads the core journal tabs; Refresh all sources reads every tab using Sheets metadata and batchGet, preserving original cells for export. This also updates the device cache. No training content is inserted as HTML.
 
 ## Verification and release status
 
@@ -51,7 +55,10 @@ Run:
 ```sh
 node tests/worker.test.mjs
 node tests/sheet_headers.test.mjs
+node tests/insights.test.mjs
+node tests/book_model.test.mjs
 python tests/browser_smoke.py
+python tests/workspace_smoke.py
 ```
 
 The prepared environment has Node, Python Playwright, and `/usr/bin/chromium`. Browser process sandbox permission may be required in a restricted task. The previous microphone simulation is removed because recording is no longer part of the product flow.
@@ -63,7 +70,7 @@ The prepared environment has Node, Python Playwright, and `/usr/bin/chromium`. B
 3. Dictate a real recap using the keyboard microphone. Organize, review, and correct it.
 4. If it introduces a new technique, explicitly select New Technique and supply its name/position. Otherwise link an existing technique if desired.
 5. Save. Verify the journal, applicable technique/pearl rows, and Fundamentals view. Refresh on another device to verify cross-device access.
-6. If linking a map reference, open Strategy links and confirm it leads to the intended description. No interactive map behavior is claimed.
+6. If linking a map reference, open Strategy links, select the matching node, and confirm the intended description. The read-only diagram is available; editing is not.
 7. For a failure use Settings → Copy diagnostics. Tokens and training content are excluded.
 
 ## Recovery and limitations
@@ -75,9 +82,27 @@ The prepared environment has Node, Python Playwright, and `/usr/bin/chromium`. B
 - Pending saves from before explicit creation flags existed retain their old intended subsidiary writes. They are not silently discarded during this update.
 - Any audio from the earlier prototype is retained under Settings → Earlier recording. It can be downloaded or explicitly deleted. New input never requests microphone permission from the app.
 - Google tokens stay in memory. User actions request renewal when needed; Google may show a popup. This is not a persistent backend login across visits.
-- Not yet implemented: interactive map, full-history AI Sensei, Class Prep, editing saved entries, or a service worker for cold-start offline access.
+- Not yet implemented: diagram editing/gameplan-layout sync, AI interpretation of full-history search, saved-entry editing, resource editing, or a service worker for cold-start offline access.
 - Historical credentials in legacy root HTML files remain a separate security-cleanup task. No credentials were added to the new app.
 
 ## Cloudflare configuration (already completed by the user)
 
 `worker/wrangler.toml` matches the Worker name `yhe-dojo-next`, model `claude-sonnet-4-6`, allowed Google account emails, and `AI_RATE_LIMITER` binding (10 requests per 60 seconds per account, with Cloudflare's per-location rate-limit semantics). `ANTHROPIC_API_KEY` is a Cloudflare secret; never place it in Git or chat. Authentication checks Google's verified email against the server-side allowlist. Origin checks are supplemental, not authentication. No Worker redeployment is required for this journal update.
+
+## Notebook / digital book
+
+Use **Notebook → Build my PDF notebook**. The button renews Google access if needed, finishes pending saves, reads a fresh complete workbook, and builds a PDF download locally. It does not depend on the AI Worker. PDF code and Unicode fonts load from this app's own origin only when needed.
+
+- Each Sheet tab becomes a chapter; unrecognized/custom tabs are included too. Fundamentals also has a derived chapter, with the original column retained in Training Journal. Readable/generated tabs are included and labeled, so they may duplicate source material.
+- The book includes all nonempty formatted data cells, including unnamed columns and repeated headings. It does not export Sheet formulas, formatting, cell comments, or Apps Script source. No data rows are silently omitted because the app cannot parse their headers.
+- Searchable text, internal linked table of contents, PDF chapter bookmarks, a linked index, page numbers, and Letter-size print margins are provided. Index references point to entry start pages. Use the PDF viewer's Find function for full-text search.
+- The **searchable HTML notebook** has chapter/index links, a built-in search box, and print styling. It remains a standalone local file.
+- The embedded DejaVu font covers Latin accents and many Unicode symbols. Unsupported glyphs are represented as `[U+code]` rather than silently dropped. Source text is not editorially rewritten by AI.
+- A partial cache cannot be exported as a complete book. Every export re-reads all tabs; a failed read blocks the export rather than presenting an incomplete snapshot as complete.
+- The developer has no live user Sheet session here. The generated 16-page validation PDF is explicitly a test fixture, NOT the user's personal book. The user's actual book is produced when they click the live Notebook button while signed in.
+- New verification checks PDF searchable content (including long entries and accented text), valid internal page targets, bookmarks, index, and text staying inside page bounds. It also checks the HTML search and phone/iPad layouts. All source data in those checks are test fixtures.
+- PDF dependencies are pinned local vendor bundles (pdf-lib 1.17.1, @pdf-lib/fontkit 1.1.1); notices and font licenses are shipped beside them. No third-party PDF service receives the workbook.
+
+## Remaining real-device checks
+
+Class Prep playback, audio interruption/screen-off behavior, workbook API reads against the real Sheet, large real-book export performance, Safari downloads, and map touch navigation require actual iPad/phone verification. Do not describe Chromium viewport tests as iOS testing. Complex AI Sensei synthesis needs a new authenticated Worker operation and deployment; the current deployed Worker only parses workout recaps.

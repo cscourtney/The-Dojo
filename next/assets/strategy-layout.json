@@ -1,0 +1,213 @@
+{
+  "source": "Layout adapted from the user-supplied standalone Game Plan Map. Contents come from Google Sheets.",
+  "nodes": {
+    "standing": {
+      "title": "Standing / Clinch",
+      "type": "n",
+      "x": 60,
+      "y": 320,
+      "goesTo": [
+        "pull",
+        "takedown",
+        "tddef"
+      ]
+    },
+    "pull": {
+      "title": "Pull Guard / Open Guard",
+      "type": "o",
+      "x": 350,
+      "y": 180,
+      "goesTo": [
+        "closed",
+        "xguard",
+        "butterfly",
+        "half"
+      ]
+    },
+    "takedown": {
+      "title": "Takedowns",
+      "type": "o",
+      "x": 350,
+      "y": 340,
+      "goesTo": [
+        "side-top",
+        "gpass"
+      ]
+    },
+    "tddef": {
+      "title": "Takedown Defense",
+      "type": "d",
+      "x": 350,
+      "y": 500,
+      "goesTo": [
+        "half",
+        "retention",
+        "side-esc"
+      ]
+    },
+    "closed": {
+      "title": "Closed Guard",
+      "type": "o",
+      "x": 670,
+      "y": 80,
+      "goesTo": [
+        "side-top",
+        "back",
+        "gpass",
+        "xguard"
+      ]
+    },
+    "xguard": {
+      "title": "X-Guard / Open",
+      "type": "o",
+      "x": 670,
+      "y": 220,
+      "goesTo": [
+        "legs",
+        "side-top",
+        "back"
+      ]
+    },
+    "butterfly": {
+      "title": "Butterfly Guard",
+      "type": "o",
+      "x": 670,
+      "y": 355,
+      "goesTo": [
+        "back",
+        "half",
+        "legs"
+      ]
+    },
+    "half": {
+      "title": "Half Guard",
+      "type": "o",
+      "x": 670,
+      "y": 490,
+      "goesTo": [
+        "octopus",
+        "back",
+        "side-top"
+      ]
+    },
+    "octopus": {
+      "title": "Octopus Guard",
+      "type": "o",
+      "x": 670,
+      "y": 625,
+      "goesTo": [
+        "back",
+        "half"
+      ]
+    },
+    "retention": {
+      "title": "Guard Retention",
+      "type": "d",
+      "x": 670,
+      "y": 760,
+      "goesTo": [
+        "half",
+        "closed",
+        "butterfly"
+      ]
+    },
+    "gpass": {
+      "title": "Guard Passing",
+      "type": "o",
+      "x": 1020,
+      "y": 180,
+      "goesTo": [
+        "side-top",
+        "turtle"
+      ]
+    },
+    "side-top": {
+      "title": "Side Control",
+      "type": "o",
+      "x": 1020,
+      "y": 330,
+      "goesTo": [
+        "back",
+        "mount-top",
+        "subs"
+      ]
+    },
+    "side-esc": {
+      "title": "Side Control Escape",
+      "type": "d",
+      "x": 1020,
+      "y": 480,
+      "goesTo": [
+        "half",
+        "closed",
+        "retention"
+      ]
+    },
+    "mount-top": {
+      "title": "Mount",
+      "type": "o",
+      "x": 1020,
+      "y": 625,
+      "goesTo": [
+        "back",
+        "subs"
+      ]
+    },
+    "mount-esc": {
+      "title": "Mount Escape",
+      "type": "d",
+      "x": 1020,
+      "y": 760,
+      "goesTo": [
+        "half",
+        "retention"
+      ]
+    },
+    "turtle": {
+      "title": "Turtle",
+      "type": "n",
+      "x": 1020,
+      "y": 895,
+      "goesTo": [
+        "back",
+        "side-top",
+        "half"
+      ]
+    },
+    "back": {
+      "title": "Back Control",
+      "type": "o",
+      "x": 1360,
+      "y": 200,
+      "goesTo": [
+        "subs"
+      ]
+    },
+    "back-def": {
+      "title": "Back Defense",
+      "type": "d",
+      "x": 1360,
+      "y": 380,
+      "goesTo": [
+        "side-esc",
+        "half"
+      ]
+    },
+    "legs": {
+      "title": "Leg Locks",
+      "type": "o",
+      "x": 1360,
+      "y": 540,
+      "goesTo": [
+        "subs"
+      ]
+    },
+    "subs": {
+      "title": "Submissions",
+      "type": "o",
+      "x": 1620,
+      "y": 310,
+      "goesTo": []
+    }
+  }
+}

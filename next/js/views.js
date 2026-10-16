@@ -1,9 +1,9 @@
-import {DETAIL_LABELS,sortedEntries,normalize,positionKey,techniqueName,POSITIONS,MAP_NODES} from './journal.js?v=3';
+import {DETAIL_LABELS,sortedEntries,normalize,positionKey,techniqueName,POSITIONS,MAP_NODES,canonicalMapKey} from './journal.js?v=5';
 const $=id=>document.getElementById(id);
 const element=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;};
 const link=(text,view,id)=>{const node=element('a',text);node.href=`#${view}/${encodeURIComponent(id)}`;return node;};
 const positionLabel=value=>POSITIONS.find(([key])=>key===positionKey(value))?.[1]||value||'Unassigned position';
-const nodeLabel=value=>MAP_NODES.find(([key])=>key===value)?.[1]||value;
+const nodeLabel=value=>MAP_NODES.find(([key])=>key===canonicalMapKey(value))?.[1]||value;
 export const techniqueKey=row=>normalize(techniqueName(row))+'|'+positionKey(row.position);
 function textDetail(parent,label,value){if(!value)return;const block=element('div',undefined,'journal-detail');block.append(element('dt',label),element('dd',value));parent.append(block);}
 function metadata(row){return `${row.date||'Undated'} · ${{class:'Class',drill:'Home drill',technique:'Technique'}[row.entry_type]||row.entry_type||'Class'}${row.gi?' · '+(row.gi==='nogi'?'No-gi':row.gi==='gi'?'Gi':row.gi):''}`;}
@@ -48,9 +48,9 @@ export function renderKnowledge(view,snapshots,{filter='',selected='',cached=fal
  }else if(view==='fundamentals'){
   for(const row of data){if(!row.fundamentals||(selected&&row.id!==selected)||!matches(row))continue;count++;const card=element('article',undefined,'session');card.append(element('small',metadata(row)),element('p',row.fundamentals),link('Open journal entry','journal',row.id));list.append(card);}
  }else{
-  const groups=new Map();for(const row of [...techniques,...data]){if(!row.map_node)continue;if(!groups.has(row.map_node))groups.set(row.map_node,[]);groups.get(row.map_node).push(row);}
-  for(const [node,rows]of groups){if(selected&&selected!==node)continue;if(!rows.some(matches))continue;count++;const card=element('details',undefined,'session');card.open=!!selected;card.append(element('summary',nodeLabel(node)));const seen=new Set();for(const row of rows){const text=techniqueName(row)||row.takedown_label||row.lesson||'Training session';const key=text+'|'+(row.description||row.technique||row.standup);if(seen.has(key))continue;seen.add(key);const item=element('div',undefined,'technique-instance');item.append(element('strong',text),element('p',row.description||row.technique||row.standup||techniques.find(t=>techniqueKey(t)===techniqueKey(row))?.description||row.notes||''));if(data.includes(row))item.append(link('Open session · '+row.date,'journal',row.id));else item.append(link('Open technique','techniques',techniqueKey(row)));card.append(item);}list.append(card);}
+  const groups=new Map();for(const row of [...techniques,...data]){if(!row.map_node)continue;const key=canonicalMapKey(row.map_node);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(row);}
+  for(const [node,rows]of groups){if(selected&&canonicalMapKey(selected)!==node)continue;if(!rows.some(matches))continue;count++;const card=element('details',undefined,'session');card.open=!!selected;card.append(element('summary',nodeLabel(node)));const seen=new Set();for(const row of rows){const text=techniqueName(row)||row.takedown_label||row.lesson||'Training session';const key=text+'|'+(row.description||row.technique||row.standup);if(seen.has(key))continue;seen.add(key);const item=element('div',undefined,'technique-instance');item.append(element('strong',text),element('p',row.description||row.technique||row.standup||techniques.find(t=>techniqueKey(t)===techniqueKey(row))?.description||row.notes||''));if(data.includes(row))item.append(link('Open session · '+row.date,'journal',row.id));else item.append(link('Open technique','techniques',techniqueKey(row)));card.append(item);}list.append(card);}
  }
- $('knowledge-state').textContent=`${source} · ${count} ${view==='techniques'?'techniques':view==='strategy'?'map references':'entries'}${view==='strategy'?' · Linked descriptions; the interactive map is not rebuilt yet.':''}`;
+ $('knowledge-state').textContent=`${source} · ${count} ${view==='techniques'?'techniques':view==='strategy'?'map references':'entries'}${view==='strategy'?' · Sheet-backed descriptions; reference-layout map.':''}`;
  if(!count)list.append(element('p',selected?'No matching linked entry in the loaded Sheet snapshot. Refresh to check.':'Nothing here yet. Save a journal entry with the relevant details, then refresh.', 'empty-state'));
 }
