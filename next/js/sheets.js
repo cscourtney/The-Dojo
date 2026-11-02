@@ -64,7 +64,7 @@ export function canonicalHeader(tab,value){
  const key=String(value??'').trim().toLowerCase().replace(/[’']/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
  const common={record_id:'id',entryid:'entry_id',created:'created_at',createdat:'created_at',map_reference:'map_node',strategy_map_reference:'map_node',technique_name:'label',danaher:'danaher_category',danahercategory:'danaher_category',gi_no_gi:'gi'};
  if(tab==='privates')return ({coach:'instructor',teacher:'instructor',lesson:'focus',title:'focus',description:'notes',details:'notes',content:'notes',text:'notes',note:'notes',private_notes:'notes',topic:'focus',session_date:'date',video:'video_url',video_link:'video_url',url:'video_url'})[key]||common[key]||key;
- if(tab==='techniques')return ({technique:'description',technique_label:'label',name:'label',technique_description:'description',detailed_description:'description',details:'description',category:'danaher_category'})[key]||common[key]||key;
+ if(tab==='techniques')return ({technique_id:'id',techniqueid:'id',technique:'description',technique_label:'label',name:'label',technique_description:'description',detailed_description:'description',details:'description',category:'danaher_category'})[key]||common[key]||key;
  if(tab==='pearls')return ({pearls:'pearl',text:'pearl',journal_entry_id:'entry_id'})[key]||common[key]||key;
  if(tab==='data')return ({focus:'lesson',lesson_focus:'lesson',rolling:'rolls',fundamental:'fundamentals',technique_name:'technique_label',takedown_name:'takedown_label',type:'entry_type',gi_no_gi:'gi'})[key]||common[key]||key;
  return key;
@@ -270,4 +270,15 @@ export async function syncPrivateLesson(entry){
  if(entry.video_url){let url;try{url=new URL(entry.video_url);}catch{throw new Error('Enter a complete video URL.');}if(!['https:','http:'].includes(url.protocol)||url.username||url.password)throw new Error('Use an HTTP or HTTPS video link without embedded credentials.');}
  const snapshot=await preparePrivates();if(!snapshot.rows.some(row=>row.id===entry.id))await append('privates',snapshot,entry);
  const updated=await readTab('privates');if(!updated.rows.some(row=>row.id===entry.id))throw new Error('Sheet read-back did not confirm this private lesson. Retry the same draft.');return updated;
+}
+
+// Targeted legacy-schema repair: name a new, unused ID column; never overwrite source cells.
+export async function repairTechniqueIdHeader(){
+ const result=await request('/values/techniques');const raw=result.values||[];const snapshot=parseTab('techniques',raw);const keys=snapshot.headerKeys||snapshot.headers;
+ requireHeaders('techniques',snapshot,['label','position']);
+ if(keys.includes('id')){requireHeaders('techniques',snapshot,['id']);return snapshot;}
+ const column=Math.max(...raw.map(row=>row.length),0)+1;
+ try{await request('/values/'+encodeURIComponent('techniques!'+columnName(column)+'1')+'?valueInputOption=RAW',{method:'PUT',body:JSON.stringify({values:[['id']]})});}
+ catch(error){const reconciled=await readTab('techniques');if(!(reconciled.headerKeys||reconciled.headers).includes('id'))throw error;requireHeaders('techniques',reconciled,['id']);return reconciled;}
+ const updated=await readTab('techniques');requireHeaders('techniques',updated,['id']);return updated;
 }
