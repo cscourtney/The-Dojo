@@ -6,16 +6,16 @@ import {makeBookModel,notebookHTML} from './book-model.js?v=14';
 import {StrategyMap} from './strategy-map.js?v=12';
 import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=14';
 import {read,write,remove,writeBatch} from './store.js';
-import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry,readOrganization,setupOrganization,saveOrganizationRecord,inspectPendingEntry,readPrivates,syncPrivateLesson,repairTechniqueIdHeader} from './sheets.js?v=16';
+import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry,readOrganization,setupOrganization,saveOrganizationRecord,inspectPendingEntry,readPrivates,syncPrivateLesson,repairTechniqueHeaders,TECHNIQUE_HEADERS} from './sheets.js?v=17';
 import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=12';
 import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=14';
 const $=id=>document.getElementById(id);
-let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='',category='',needsTechniqueIdRepair=false;
+let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='',category='',needsTechniqueRepair=false;
 let workbook=null;let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
 function status(message,error=false){
  for(const id of ['status','review-status','workspace-status']){ $(id).hidden=false;$(id).textContent=message;$(id).classList.toggle('error',error); }
  if(queue.length){$('pending-feedback').hidden=false;$('pending-feedback').textContent=message;$('pending-feedback').classList.toggle('error',error);}
- if(error&&/techniques: missing headers [^.]*\bid\b/.test(message))needsTechniqueIdRepair=true;
+ if(error){const missing=message.match(/techniques: missing headers ([^.]+)/)?.[1].split(',').map(key=>key.trim())||[];if(missing.some(key=>TECHNIQUE_HEADERS.includes(key)))needsTechniqueRepair=true;}
  if(error){logs.push({at:new Date().toISOString(),message});if(logs.length>30)logs.shift();}
 }
 window.addEventListener('error',()=>status('An unexpected error occurred. Your saved draft is retained. Use Settings → Copy diagnostics.',true));
@@ -199,7 +199,7 @@ function renderPendingSaves(){
  panel.append(node('h2','Pending journal saves'),node('p','A pending entry is protected from editing because some of its data may already be saved. You can retry it, safely unlock it if nothing was written, or keep it pending and start another entry.'));
  for(const entry of queue){const card=node('article');card.className='session';card.append(node('strong',(entry.date||'Undated')+' · '+(entry.lesson||entry.technique_label||'Training entry')));const actions=node('div');actions.className='actions';
   for(const [label,action]of [['Retry this save',()=>retryPending(entry.id)],['Check & unlock draft',()=>unlockPending(entry.id)],['Download backup',()=>downloadPending(entry)]]){const button=node('button',label);button.type='button';button.className='quiet';button.disabled=busy;button.onclick=action;actions.append(button);}
-  if(needsTechniqueIdRepair||(snapshots.techniques&&!(snapshots.techniques.headerKeys||snapshots.techniques.headers||[]).includes('id'))){const repair=node('button','Repair technique ID header & retry');repair.type='button';repair.className='primary';repair.disabled=busy;repair.onclick=()=>repairPendingEntry(entry.id);actions.append(repair);}
+  if(needsTechniqueRepair||(snapshots.techniques&&TECHNIQUE_HEADERS.some(key=>!(snapshots.techniques.headerKeys||snapshots.techniques.headers||[]).includes(key)))){const repair=node('button','Repair technique headers & retry');repair.type='button';repair.className='primary';repair.disabled=busy;repair.onclick=()=>repairPendingEntry(entry.id);actions.append(repair);}
   if(entry.id===draft.id){const button=node('button','Keep pending & start another entry');button.type='button';button.className='primary';button.disabled=busy;button.onclick=async()=>{await resetDraft();status('Your previous entry is still pending above. You can enter another session now.');};actions.append(button);}card.append(actions);panel.append(card);
  }
 }
@@ -207,10 +207,10 @@ function downloadPending(entry){const url=URL.createObjectURL(new Blob([JSON.str
 async function retryPending(id){if(busy)return;const entry=queue.find(row=>row.id===id);if(!entry)return;busy=true;controls();try{status('Opening Google sign-in if needed. Your pending entry remains protected…');await ensureAccess();status('Retrying this entry: checking the Sheet and confirming any completed writes…');const updated=await syncEntry(entry);for(const [tab,snapshot]of Object.entries(updated)){snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}const remaining=queue.filter(row=>row.id!==id);await write('queue',remaining);queue=remaining;if(draft.id===id)await resetDraft();cached=false;render();status('Saved and confirmed in Google Sheets.');}catch(error){status('Pending save: '+error.message+' Your entry is retained. You can check and unlock it if no rows were written.',true);}finally{busy=false;controls();}}
 async function repairPendingEntry(id){
  if(busy)return;const entry=queue.find(row=>row.id===id);if(!entry)return;busy=true;controls();let checked=false;
- try{status('Connecting to Google to repair the missing technique ID header. Your entry is retained…');await ensureAccess();await draftWrites;const backups=await read('journal-recovery-backups')||[];await write('journal-recovery-backups',[...backups,{entry,draft:structuredClone(draft),at:new Date().toISOString(),reason:'before-technique-id-repair'}]);
-  snapshots.techniques=await repairTechniqueIdHeader();await write('mirror-techniques',snapshots.techniques);checked=true;needsTechniqueIdRepair=false;status('Technique ID header confirmed. Retrying and checking this journal entry…');
-  const updated=await syncEntry(entry);for(const [tab,snapshot]of Object.entries(updated)){snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}const remaining=queue.filter(row=>row.id!==id);await write('queue',remaining);queue=remaining;if(draft.id===id)await resetDraft();cached=false;render();status('Technique ID header confirmed. Your journal entry is saved and confirmed in Google Sheets.');
- }catch(error){status((checked?'The technique ID header is repaired, but the entry is still pending: ':'Technique ID repair could not finish: ')+error.message+' Your pending entry and draft are retained.',true);}finally{busy=false;controls();}
+ try{status('Connecting to Google to check and repair missing technique headers. Your entry is retained…');await ensureAccess();await draftWrites;const backups=await read('journal-recovery-backups')||[];await write('journal-recovery-backups',[...backups,{entry,draft:structuredClone(draft),at:new Date().toISOString(),reason:'before-technique-id-repair'}]);
+  snapshots.techniques=await repairTechniqueHeaders();await write('mirror-techniques',snapshots.techniques);checked=true;needsTechniqueRepair=false;status('All required technique headers confirmed. Retrying and checking this journal entry…');
+  const updated=await syncEntry(entry);for(const [tab,snapshot]of Object.entries(updated)){snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}const remaining=queue.filter(row=>row.id!==id);await write('queue',remaining);queue=remaining;if(draft.id===id)await resetDraft();cached=false;render();status('All required technique headers confirmed. Your journal entry is saved and confirmed in Google Sheets.');
+ }catch(error){status((checked?'The technique headers are repaired, but the entry is still pending: ':'Technique header repair could not finish: ')+error.message+' Your pending entry and draft are retained.',true);}finally{busy=false;controls();}
 }
 async function unlockPending(id){
  if(busy)return;const entry=queue.find(row=>row.id===id);if(!entry)return;busy=true;controls();
@@ -263,7 +263,7 @@ $('entry-form').onsubmit=async event=>{
 };
 $('new-draft').onclick=async()=>{if(!confirm('Start a new draft? Pending saves are kept; this draft will be cleared.'))return;try{await resetDraft();status('Ready for a new session.');}catch(error){status(error.message,true);}};
 $('save-settings').onclick=async()=>{try{const value=$('worker-url').value.trim();if(value){const url=new URL(value);if(url.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');if(url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('Enter the Worker origin only, without a path or credentials.');}await write('worker-url',value);status('Connection setting saved on this device.');}catch(error){status(error.message,true);}};
-$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.8.2',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,pendingLibrarySave:!!libraryEditor.pending,pendingOrganizationSave:!!organizationEditor.pending,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
+$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.8.3',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,pendingLibrarySave:!!libraryEditor.pending,pendingOrganizationSave:!!organizationEditor.pending,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
 window.addEventListener('online',async()=>{if(busy||!queue.length)return;busy=true;controls();try{await flushQueue();status('Pending entries synced to Google Sheets.');}catch(error){status(`Pending sync: ${error.message}`,true);}finally{busy=false;controls();}});
 async function restoreEarlierRecording(){
  const metadata=await read('recording');if(!metadata)return;const chunks=[];for(let i=0;i<metadata.count;i++){const chunk=await read(`audio-${metadata.id}-${i}`);if(chunk)chunks.push(chunk);}if(!chunks.length)return;

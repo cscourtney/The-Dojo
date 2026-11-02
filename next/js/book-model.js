@@ -1,6 +1,6 @@
 import {videoURL} from './links.js?v=14';
 import {ORG_TABS,categoryDefinitions,categoryName,sheetLayout,mapSVG} from './organization.js?v=12';
-import {canonicalHeader,parseTab} from './sheets.js?v=16';
+import {canonicalHeader,parseTab} from './sheets.js?v=17';
 import {canonicalMapKey,normalize,positionKey} from './journal.js?v=12';
 const CHAPTERS={data:'Training Journal',techniques:'Technique Library',pearls:'Pearls',mistakes:'Mistake Audit',goals:'Goals',gameplan:'Strategy and Game Plan',chains:'Chains and Sequences',library:'Resource Library',privates:'Private Lessons',principles:'Principles',readable:'Readable Sheet View'};
 const ORDER=['data','techniques','pearls','mistakes','goals','gameplan','chains','library','privates','principles','readable'];

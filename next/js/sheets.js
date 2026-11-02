@@ -118,7 +118,7 @@ export async function syncEntry(entry) {
   const pearls = [...new Set((entry.pearls || '').split('\n').map(s => s.replace(/^\d+[.)]\s*/, '').trim()).filter(Boolean))];
   if (techniques.length || entry.technique_label || entry.takedown_label) {
     snapshots.techniques = await readTab('techniques');
-    requireHeaders('techniques', snapshots.techniques, ['label','position','map_node','description','date','gi','id','created_at']);
+    requireHeaders('techniques', snapshots.techniques, TECHNIQUE_HEADERS);
   }
   if (pearls.length) {
     snapshots.pearls = await readTab('pearls');
@@ -272,13 +272,16 @@ export async function syncPrivateLesson(entry){
  const updated=await readTab('privates');if(!updated.rows.some(row=>row.id===entry.id))throw new Error('Sheet read-back did not confirm this private lesson. Retry the same draft.');return updated;
 }
 
-// Targeted legacy-schema repair: name a new, unused ID column; never overwrite source cells.
-export async function repairTechniqueIdHeader(){
+// Explicit legacy-schema repair: append all missing supported headings in one write.
+export const TECHNIQUE_HEADERS=['label','position','map_node','description','date','gi','id','created_at'];
+export async function repairTechniqueHeaders(){
  const result=await request('/values/techniques');const raw=result.values||[];const snapshot=parseTab('techniques',raw);const keys=snapshot.headerKeys||snapshot.headers;
- requireHeaders('techniques',snapshot,['label','position']);
- if(keys.includes('id')){requireHeaders('techniques',snapshot,['id']);return snapshot;}
+ // Identify the existing library before making changes and reject ambiguous writable columns.
+ requireHeaders('techniques',snapshot,['label','position']);requireHeaders('techniques',snapshot,TECHNIQUE_HEADERS.filter(key=>keys.includes(key)));
+ const missing=TECHNIQUE_HEADERS.filter(key=>!keys.includes(key));if(!missing.length)return snapshot;
  const column=Math.max(...raw.map(row=>row.length),0)+1;
- try{await request('/values/'+encodeURIComponent('techniques!'+columnName(column)+'1')+'?valueInputOption=RAW',{method:'PUT',body:JSON.stringify({values:[['id']]})});}
- catch(error){const reconciled=await readTab('techniques');if(!(reconciled.headerKeys||reconciled.headers).includes('id'))throw error;requireHeaders('techniques',reconciled,['id']);return reconciled;}
- const updated=await readTab('techniques');requireHeaders('techniques',updated,['id']);return updated;
+ try{await request('/values/'+encodeURIComponent('techniques!'+columnName(column)+'1')+'?valueInputOption=RAW',{method:'PUT',body:JSON.stringify({values:[missing]})});}
+ catch(error){const reconciled=await readTab('techniques');if(TECHNIQUE_HEADERS.some(key=>!(reconciled.headerKeys||reconciled.headers).includes(key)))throw error;requireHeaders('techniques',reconciled,TECHNIQUE_HEADERS);return reconciled;}
+ const updated=await readTab('techniques');requireHeaders('techniques',updated,TECHNIQUE_HEADERS);return updated;
 }
+export const repairTechniqueIdHeader=repairTechniqueHeaders;
