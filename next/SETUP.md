@@ -141,7 +141,7 @@ The PDF uses a static Caveat Regular instance derived with fontTools varLib.inst
 
 ## Pending journal recovery and Private Lessons
 
-A queued journal entry remains immutable until confirmed because part of its multi-tab save may already have reached Sheets. A failed write previously left the form disabled without a recovery path. The Journal now shows each pending entry with:
+A queued journal entry remains immutable until confirmed because part of its multi-tab save may already have reached Sheets. A failed write previously left the form disabled without a recovery path. The Journal now shows each pending entry with sign-in/check progress and errors directly inside the recovery box (v15), rather than only farther down the page. Keep pending & start another entry is the primary local escape and does not require Google access. The available actions are:
 
 - Retry this save: reconcile that particular stable ID, independently of other queued entries.
 - Check & unlock draft: read every affected tab with valid ID/entry_id headers. Unlock only when no data/technique/pearl row belonging to the entry exists. Read failures or partial writes keep it protected. Another nonempty open draft is never replaced.

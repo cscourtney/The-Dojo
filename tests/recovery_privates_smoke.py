@@ -55,7 +55,7 @@ def main():
   # A missing identity column must never be mistaken for proof that no row was saved.
   tables['data'][0][0]='';page.get_by_role('button',name='Check & unlock draft',exact=True).click();expect(page.locator('#status')).to_contain_text('missing headers id');expect(page.locator('#technique')).to_be_disabled();tables['data'][0][0]='id'
   # A failed verification must never discard a pending entry.
-  fail['read']=True;page.get_by_role('button',name='Check & unlock draft',exact=True).click();expect(page.locator('#status')).to_contain_text('Could not safely unlock');expect(page.locator('#technique')).to_be_disabled();fail['read']=False
+  fail['read']=True;page.get_by_role('button',name='Check & unlock draft',exact=True).click();expect(page.locator('#status')).to_contain_text('Could not safely unlock');expect(page.locator('#pending-feedback')).to_contain_text('Could not safely unlock');expect(page.locator('#technique')).to_be_disabled();fail['read']=False
   page.get_by_role('button',name='Check & unlock draft',exact=True).click();expect(page.locator('#status')).to_contain_text('draft is unlocked');expect(page.locator('#technique')).to_be_enabled();expect(page.locator('#map_node')).to_have_value('guard-passing');expect(page.locator('#transcript')).to_have_value('Preserve the original dictated recap')
   assert page.evaluate("async()=>{const s=await import('./js/store.js');return (await s.read('journal-recovery-backups')).length}")==1
   tables['techniques'][0][2]='position';page.locator('#save').click();expect(page.locator('#status')).to_contain_text('Saved and confirmed');saved=dict(zip(HEADERS,tables['data'][-1]));assert saved['notes'].count('Original recap:')==1 and saved['map_node']=='guard-passing';assert len(tables['techniques'])==2
