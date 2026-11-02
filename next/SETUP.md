@@ -138,3 +138,20 @@ App navigation, map rendering, map choices, category browsing, and notebook cate
 PDF notebooks include a vector Letter-landscape map, with clickable nodes leading to position notes and links to exact source technique descriptions. All other pages remain portrait. Table of contents, index, bookmarks, and Back to contents links remain available. Every source tab, including all organization cells and unknown/extra columns, remains in the book. The standalone HTML contains the same linked map and uses landscape printing for that section. New exports read a fresh workbook; existing downloads are snapshots.
 
 The PDF uses a static Caveat Regular instance derived with fontTools varLib.instancer from the bundled variable font at default axes. It is fully embedded with contextual/ligature alternates disabled, fixing visible missing glyphs and non-original extraction from alternate glyphs. The original OFL notice applies. Tests include rendered heading ink, searchable text, map orientation, valid internal destinations, all-source retention, phone/tablet widths, uncertain setup/edit responses, reordered rows, and conflict detection. Actual Google Sheets changes and iPad Safari behavior still need the signed-in user check.
+
+## Pending journal recovery and Private Lessons
+
+A queued journal entry remains immutable until confirmed because part of its multi-tab save may already have reached Sheets. A failed write previously left the form disabled without a recovery path. The Journal now shows each pending entry with:
+
+- Retry this save: reconcile that particular stable ID, independently of other queued entries.
+- Check & unlock draft: read every affected tab with valid ID/entry_id headers. Unlock only when no data/technique/pearl row belonging to the entry exists. Read failures or partial writes keep it protected. Another nonempty open draft is never replaced.
+- Keep pending & start another entry: retain the queued payload and provide a separate editable draft.
+- Download backup: save the queued JSON locally, with no upload.
+
+Unlocking atomically writes the recovered draft, updated queue, and a local recovery backup. The original dictated recap and map choices remain recoverable. Do not clear browser data; this is where pending entries live. Connect/Refresh still load saved Sheet records if a pending sync fails. Full-source reads and notebook exports can proceed with an explicit warning that unsynced local entries are not included unless already in Sheets.
+
+**Privates** is a separate page: date, optional instructor/focus, free-form notes, and optional video URL. Native keyboard dictation works in the notes field. It saves to `privates`, with stable-ID retry and read-back, independently of the journal queue. A pending private save is retained across reloads; retry Save private lesson to reconcile it.
+
+The first explicit private save creates the tab if absent or appends missing supported headers beyond all populated columns. Supported headers are `id, date, instructor, focus, notes, video_url, created_at`. Existing Coach/Teacher, Topic/Title/Lesson, Details/Description/Text, Video/Video Link/URL, and Date labels are read and written through aliases. Existing extra and unnamed cells remain untouched; ambiguous writable headings stop the save. This user-authorized migration does not change the other tabs. New private saves do not create a workout row, technique, pearl, or map link automatically.
+
+Private lesson history reads from Sheets, can be searched, and appears in every newly built notebook. PDF and HTML exports contain clickable HTTP/HTTPS video links (not embedded video files). Access to a private video still follows its original sharing permissions. Script/file URLs and URLs with embedded credentials are rejected. All fixture test files are synthetic; the user's actual pending entry and workbook require the live signed-in check.

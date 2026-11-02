@@ -1,8 +1,9 @@
 import {isReference} from './library.js?v=9';
-import {makePrep,searchHistory,resourceURL} from './insights.js?v=9';
+import {makePrep,searchHistory,resourceURL} from './insights.js?v=14';
 import {SHEET_ID} from './sheets.js?v=9';
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 export function sourceLink(source,snapshots){
+ if(source.tab==='privates'&&source.row.id){const link=el('a','Open private lesson');link.href='#privates/'+encodeURIComponent(source.row.id);return link;}
  const link=el('a',source.tab==='data'&&source.row.id?'Open journal entry':'Open source Sheet tab');
  if(source.tab==='data'&&isReference(source.row)){link.textContent=source.row.entry_type==='fundamental'?'Open fundamental':'Open map reference';link.href=source.row.entry_type==='fundamental'?'#fundamentals/'+encodeURIComponent(source.row.id):'#strategy/'+encodeURIComponent(source.row.map_node);}
  else if(source.tab==='data'&&source.row.id)link.href='#journal/'+encodeURIComponent(source.row.id);

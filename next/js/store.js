@@ -29,3 +29,8 @@ export async function remove(key) {
     tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
   });
 }
+
+// Commit related local recovery changes together, so a crash cannot lose the queued entry.
+export async function writeBatch(entries){
+ const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('state','readwrite');for(const [key,value]of entries)tx.objectStore('state').put(value,key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});
+}

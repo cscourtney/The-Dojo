@@ -1,10 +1,10 @@
-import {makeBookModel,termsForRecord} from './book-model.js?v=12';
+import {makeBookModel,termsForRecord} from './book-model.js?v=14';
 let libraries;
 function loadScript(path){return new Promise((resolve,reject)=>{const script=document.createElement('script');const timer=setTimeout(()=>{script.remove();reject(new Error('PDF library timed out. Retry while connected to the app.'));},20000);script.src=new URL(path,import.meta.url).href;script.onload=()=>{clearTimeout(timer);resolve();};script.onerror=()=>{clearTimeout(timer);script.remove();reject(new Error('PDF library could not load. Retry while connected to the app.'));};document.head.append(script);});}
 async function dependencies(){return libraries ||= (async()=>{if(!window.PDFLib)await loadScript('../vendor/pdf-lib.min.js');if(!window.fontkit)await loadScript('../vendor/fontkit.min.js');return {PDFLib:window.PDFLib,fontkit:window.fontkit};})().catch(error=>{libraries=null;throw error;});}
 export async function createNotebookPDF(workbook,onProgress=()=>{},{paper=true}={}){
  const model=makeBookModel(workbook);onProgress('Loading PDF fonts…');const {PDFLib,fontkit}=await dependencies();
- const {PDFDocument,rgb,PDFName,PDFHexString}=PDFLib;
+ const {PDFDocument,rgb,PDFName,PDFHexString,PDFString}=PDFLib;
  const pdf=await PDFDocument.create();pdf.registerFontkit(fontkit);
  const fontBytes=await Promise.all(['DejaVuSans.ttf','DejaVuSans-Bold.ttf','PatrickHand-Regular.ttf','Caveat-Regular.ttf'].map(async name=>{const response=await fetch(new URL('../assets/fonts/'+name,import.meta.url),{signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error('Notebook font could not load.');return response.arrayBuffer();}));
  const regular=await pdf.embedFont(fontBytes[0],{subset:true}),bold=await pdf.embedFont(fontBytes[1],{subset:true}),handwriting=await pdf.embedFont(fontBytes[2],{subset:true}),heading=await pdf.embedFont(fontBytes[3],{subset:false,features:{calt:false,liga:false,clig:false,rlig:false}});
@@ -50,7 +50,7 @@ export async function createNotebookPDF(workbook,onProgress=()=>{},{paper=true}=
   if(chapter.introduction)paragraph(chapter.introduction);else if(!chapter.records.length)paragraph('No entries in this category or tab yet.');
   for(const record of chapter.records){
    ensure(70);const start=page;recordStarts.set(record.id,{page:start,top:y+24});paragraph((record.date?record.date+' · ':'')+record.title,{font:heading,size:19,leading:25});y-=5;
-   for(const field of record.fields){ensure(42);paragraph(field.label,{font:bold,size:8.5,leading:13,color:muted});paragraph(field.value);y-=7;}
+   for(const field of record.fields){ensure(42);paragraph(field.label,{font:bold,size:8.5,leading:13,color:muted});if(field.url){for(const text of wrap(field.value,regular,10)){ensure(16);page.drawText(text,{x:M,y,size:10,font:regular,color:ink});const annotation=pdf.context.register(pdf.context.obj({Type:'Annot',Subtype:'Link',Rect:[M,y-3,W-M,y+12],Border:[0,0,0],A:{S:'URI',URI:PDFString.of(field.url)}}));const annotations=page.node.get(PDFName.of('Annots'));if(annotations)pdf.context.lookup(annotations).push(annotation);else page.node.set(PDFName.of('Annots'),pdf.context.obj([annotation]));y-=16;}}else paragraph(field.value);y-=7;}
    if(record.links){
     if(!record.links.length)paragraph('No linked technique recorded at this position yet.',{font:regular,size:9,color:muted});
     for(const target of record.links){for(const text of wrap('Open: '+target.title,regular,10)){ensure(18);page.drawText(text,{x:M,y,size:10,font:regular,color:ink});pendingLinks.push({from:page,rect:[M,y-3,W-M,y+13],id:target.id});y-=18;}}

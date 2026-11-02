@@ -18,6 +18,8 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - App appearance: warm paper, Caveat only for The Dojo branding/title, clean system text for navigation, forms, headings, and entries. Preserve the original artwork.
 - Notebook appearance: user selected option A (Patrick Hand body, Caveat headings, warm unlined paper). Keep Back to contents on every PDF page and the white-background print option.
 - Direct additions are supported from Techniques/Pearls/Fundamentals and map positions. Direct fundamentals use data.entry_type=fundamental; map references use data.entry_type=reference. Exclude both from workout history. Direct pearls use a direct: UUID entry_id, not a journal link. Never silently add Sheet columns. Category browsing uses the existing danaher_category values; the historical exact 15-skill list is absent from the supplied sources, so do not invent it.
+- Privates is a separate blank lesson form with date, optional instructor/focus/video URL, and notes. It reads/writes the existing privates tab; first save may create it or add missing supported headers after every populated column, preserving existing/unnamed data. No automatic technique/map creation. Include private notes and clickable safe video links in notebook exports.
+- Journal pending recovery uses fresh identity-header-validated reads of every affected tab before unlocking an entry. Never unlock if any related row exists or a required read fails. Keep partial writes queued; per-entry retry and starting a separate draft remain available. Atomic local recovery preserves a backup under journal-recovery-backups. Do not tell the user to clear browser/site data to recover a draft. A blocked queue must not prevent reading saved data or independent private lesson saves.
 - Library pending saves use library-pending and library-draft in IndexedDB; retry from Resume pending save. Reconcile stable IDs and verify read-back before clearing.
 - Notebook categories follow the Sheet category order. Include a landscape visual map with internal links to node notes and technique descriptions, and retain every raw source/configuration cell in source chapters. PDF Caveat headings use a static regular instance, full embedding, and contextual alternates disabled to preserve visible and searchable glyphs.
 - Next phases: full-history AI Sensei interpretation, saved-entry editing, resource editing, and PWA/offline shell. Do not expose nonworking AI endpoints or invent Sheet schemas.
@@ -41,6 +43,8 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - `node tests/book_model.test.mjs`
 - `node tests/library.test.mjs`
 - `node tests/organization.test.mjs`
+- `node tests/privates.test.mjs`
+- `python tests/recovery_privates_smoke.py` (mocked frozen-draft recovery, partial writes, independent retry, private lessons, video/export links, second-device reads)
 - `python tests/organization_smoke.py` (mocked migration, editing, conflict/retry handling, landscape exports, second-device reads)
 - `python tests/library_smoke.py` (mocked direct writes, categories, interrupted-save recovery, map links, and mobile forms)
 - `python tests/browser_smoke.py`

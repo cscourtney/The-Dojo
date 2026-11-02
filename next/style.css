@@ -35,3 +35,5 @@ footer{font-family:'Dojo Title',cursive}
 @media(max-width:600px){.library-form{padding:16px}.library-actions>button{flex:1 1 160px}}
 
 .organization{margin:16px 0 24px;padding:16px;border:1px solid var(--line);border-radius:10px}.organization summary{font-weight:600;min-height:44px}.organization>select{margin:8px 0 14px}.organization>label{margin-top:20px}.organization>.hint{margin-top:12px}.organization>.quiet{margin:8px 0}
+
+.pending-saves{margin-bottom:24px}.pending-saves>p{font-size:14px}.pending-saves .actions>button{min-height:46px}#privates-view{margin-top:18px}#private-filter{margin:8px 0 20px}#private-form{margin:24px 0}#private-form .hint{margin-bottom:0}@media(max-width:600px){.pending-saves .actions>button{flex:1 1 180px}}

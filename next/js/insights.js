@@ -36,7 +36,7 @@ export function searchHistory(snapshots,query,limit=40){
    const words=searchable.split(/[^\p{L}\p{N}-]+/u);let score=0,matched=0;
    for(const group of groups){if(group.some(token=>words.includes(token))){score+=4;matched++;}else if(group.some(token=>searchable.includes(token))){score+=1;matched++;}}
    if(!score)continue;
-   const title=text(row.lesson||row.label||row.technique_label||row.title||row.goal||row.mistake||row.chain_label||row.name)||tab;
+   const title=text(row.lesson||row.label||row.technique_label||row.focus||row.title||row.goal||row.mistake||row.chain_label||row.name)||tab;
    if(normalize(title).includes(normalize(query)))score+=8;
    // Reward records covering the complete question; do not infer a diagnosis from keyword matches.
    if(matched===groups.length)score+=groups.length*2;

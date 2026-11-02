@@ -133,7 +133,9 @@ Read-only from the app (mirror → Sensei context, Chains page). Chuck maintains
 Read by mirror for Sensei context. Intended to back the interactive Game Plan Map (nodes, connections, pearls per node) once it's re-merged (HANDOFF P2-5). Confirm headers before building.
 
 ### `privates` — private lesson notes (with Dan and others)
-Read-only from the app (mirror). Confirm headers.
+The `/next/` Privates page reads and appends private lessons. Canonical fields: `id, date, instructor, focus, notes, video_url, created_at`. Existing Coach/Teacher → instructor, Topic/Title/Lesson → focus, Details/Description/Text → notes, Video/Video Link/URL → video_url labels are supported. Stable IDs reconcile retries.
+
+On first explicit save, the app may create this tab or append missing supported headers beyond the widest populated row. Existing extra and unnamed cells remain untouched. Blank/no usable headers or ambiguous writable headings stop the save. No journal or library row is created automatically. Private lesson notes and video links are included in notebook exports.
 
 ### `readable` — human-readable formatted journal
 Generated from `data` by Apps Script ("v3", installed July 2026). The app never writes here. Because onEdit doesn't fire on API writes, the script needs a **time-driven trigger** (e.g. every 15 min) or a "Rebuild" menu item.
