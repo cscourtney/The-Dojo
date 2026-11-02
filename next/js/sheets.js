@@ -285,3 +285,46 @@ export async function repairTechniqueHeaders(){
  const updated=await readTab('techniques');requireHeaders('techniques',updated,TECHNIQUE_HEADERS);return updated;
 }
 export const repairTechniqueIdHeader=repairTechniqueHeaders;
+
+export const JOURNAL_EDIT_FIELDS=['date','entry_type','gi','lesson','standup','technique','drillwork','rolls','pearls','fundamentals','notes'];
+export async function updateJournalEntry(change){
+ const {expected,object}=change;if(!expected?.id||expected.id!==object?.id||!/^\d{4}-\d{2}-\d{2}$/.test(object.date))throw new Error('Choose an existing journal entry and a valid date.');
+ const metadata=await request('?fields=sheets.properties');const sheetIds=new Map((metadata.sheets||[]).map(sheet=>[sheet.properties.title,sheet.properties.sheetId]));
+ const load=async tab=>{const response=await request('/values/'+encodeURIComponent(tab));const raw=response.values||[];return {raw,snapshot:parseTab(tab,raw)};};
+ const data=await load('data');requireHeaders('data',data.snapshot,['id',...JOURNAL_EDIT_FIELDS]);
+ const same=(row,target,keys)=>keys.every(key=>String(row[key]??'')===String(target[key]??''));const dataKeys=data.snapshot.headerKeys||data.snapshot.headers;const idIndex=dataKeys.indexOf('id');
+ const matches=data.raw.slice(1).map((row,index)=>({row,index:index+1})).filter(item=>String(item.row[idIndex]??'')===expected.id);
+ if(matches.length!==1)throw new Error('This journal ID is missing or duplicated in the Sheet. Refresh before editing.');
+ const current=data.snapshot.rows.find(row=>row.id===expected.id);const protectedFields=['id','created_at','technique_label','takedown_label','position','map_node'];
+ if(!same(current,expected,protectedFields)||(!same(current,expected,JOURNAL_EDIT_FIELDS)&&!same(current,object,JOURNAL_EDIT_FIELDS)))throw new Error('This entry changed in another device or in the Sheet. Your changes were not applied. Refresh and review the latest entry.');
+ const requests=[];const put=(tab,snapshot,rowIndex,key,value)=>{const keys=snapshot.headerKeys||snapshot.headers;const column=keys.indexOf(key);if(column<0)throw new Error(tab+': missing header '+key);const sheetId=sheetIds.get(tab);if(sheetId===undefined)throw new Error('The Sheet tab is unavailable: '+tab);requests.push({updateCells:{start:{sheetId,rowIndex,columnIndex:column},rows:[{values:[{userEnteredValue:{stringValue:String(value??'')}}]}],fields:'userEnteredValue'}});};
+ for(const key of JOURNAL_EDIT_FIELDS)if(String(current[key]??'')!==String(object[key]??''))put('data',data.snapshot,matches[0].index,key,object[key]);
+ const updated={};
+ // Pearls are owned by this journal ID; retain other entries and every unknown column.
+ const split=value=>[...new Set(String(value||'').split('\n').map(text=>text.replace(/^\d+[.)]\s*/,'').trim()).filter(Boolean))];const before=split(expected.pearls),after=split(object.pearls);
+ if(before.length||after.length){
+  const pearls=await load('pearls');const fields=['date','gi','pearl','entry_id','created_at'];requireHeaders('pearls',pearls.snapshot,fields);const keys=pearls.snapshot.headerKeys||pearls.snapshot.headers;const owner=keys.indexOf('entry_id');
+  const owned=pearls.raw.slice(1).map((row,index)=>({row,index:index+1,object:Object.fromEntries(keys.filter(Boolean).map(key=>[key,row[keys.indexOf(key)]??'']))})).filter(item=>String(item.row[owner]??'')===expected.id);
+  if(owned.some(item=>!before.includes(String(item.object.pearl))&&!after.includes(String(item.object.pearl))))throw new Error('Linked pearls changed outside this journal. Refresh and review them before saving this edit.');
+  const available=[...owned];const assignments=after.map(pearl=>{const index=available.findIndex(item=>String(item.object.pearl)===pearl);return index<0?null:available.splice(index,1)[0];});const appendRows=[];
+  for(const [i,pearl]of after.entries()){const existing=assignments[i]||available.shift();const next={date:object.date,gi:object.gi||'',pearl,entry_id:expected.id,created_at:existing?.object.created_at||expected.created_at||''};
+   if(existing){for(const key of fields)if(String(existing.object[key]??'')!==String(next[key]??''))put('pearls',pearls.snapshot,existing.index,key,next[key]);}
+   else appendRows.push({values:keys.map(key=>({userEnteredValue:{stringValue:String(next[key]??'')}}))});
+  }
+  // Clearing the owned projection preserves unrelated/extra cells and avoids physical row deletion.
+  for(const item of available)for(const key of fields)if(item.object[key]!=='')put('pearls',pearls.snapshot,item.index,key,'');
+  if(appendRows.length)requests.push({appendCells:{sheetId:sheetIds.get('pearls'),rows:appendRows,fields:'userEnteredValue'}});
+  updated.pearls=pearls.snapshot;
+ }
+ // Update date/gi only on technique instances created by this session; shared definitions remain intact.
+ if(expected.technique_label||expected.takedown_label){const techniques=await load('techniques');requireHeaders('techniques',techniques.snapshot,['id','date','gi']);const keys=techniques.snapshot.headerKeys||techniques.snapshot.headers;const ownedIds=new Set([expected.id+'_tech',expected.id+'_td']);const rows=techniques.raw.slice(1).map((row,index)=>({row,index:index+1,id:String(row[keys.indexOf('id')]??'')})).filter(item=>ownedIds.has(item.id));
+  if(new Set(rows.map(item=>item.id)).size!==rows.length)throw new Error('A session-created technique ID is duplicated. Refresh before editing.');
+  for(const row of rows)for(const key of ['date','gi']){const currentValue=String(row.row[keys.indexOf(key)]??'');if(currentValue===String(expected[key]??'')&&currentValue!==String(object[key]??''))put('techniques',techniques.snapshot,row.index,key,object[key]||'');}
+  updated.techniques=techniques.snapshot;
+ }
+ // All scoped cell changes and pearl appends are applied in one atomic Sheets batch.
+ if(requests.length)await request(':batchUpdate',{method:'POST',body:JSON.stringify({requests})});
+ const confirmed=await readTab('data');if(!confirmed.rows.some(row=>row.id===expected.id&&same(row,object,JOURNAL_EDIT_FIELDS)))throw new Error('The journal edit was not confirmed by read-back. Retry this same edit.');updated.data=confirmed;
+ if(updated.pearls){const snapshot=await readTab('pearls');const actual=snapshot.rows.filter(row=>row.entry_id===expected.id);if(actual.length!==after.length||after.some(pearl=>!actual.some(row=>row.pearl===pearl&&row.date===object.date&&String(row.gi||'')===String(object.gi||''))))throw new Error('Linked pearl read-back did not confirm this edit. Retry the same edit.');updated.pearls=snapshot;}
+ if(updated.techniques)updated.techniques=await readTab('techniques');return updated;
+}

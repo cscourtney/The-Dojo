@@ -22,6 +22,7 @@ export function renderJournal(snapshot,{filter='',type='',limit=12,selected='',o
   if(row.map_node)links.append(link('Strategy: '+nodeLabel(row.map_node,organization),'strategy',row.map_node));
   if(row.pearls)links.append(link('View pearls','pearls',row.id));
   if(row.fundamentals)links.append(link('View fundamentals','fundamentals',row.id));
+  if(row.id){const edit=element('button','Edit entry');edit.type='button';edit.className='quiet';edit.dataset.editEntry=row.id;links.append(edit);}
   card.append(links);list.append(card);
  }
  if(!displayed.length)list.append(element('p',selected?'This session is not in the loaded Sheet snapshot. Refresh to check for it.':'No matching sessions.', 'empty-state'));

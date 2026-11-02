@@ -82,7 +82,7 @@ The prepared environment has Node, Python Playwright, and `/usr/bin/chromium`. B
 - Pending saves from before explicit creation flags existed retain their old intended subsidiary writes. They are not silently discarded during this update.
 - Any audio from the earlier prototype is retained under Settings → Earlier recording. It can be downloaded or explicitly deleted. New input never requests microphone permission from the app.
 - Google tokens stay in memory. User actions request renewal when needed; Google may show a popup. This is not a persistent backend login across visits.
-- Not yet implemented: drag-and-drop diagram editing, AI interpretation of full-history search, saved-entry editing, resource editing, or a service worker for cold-start offline access.
+- Not yet implemented: drag-and-drop diagram editing, AI interpretation of full-history search, resource editing, or a service worker for cold-start offline access.
 - Historical credentials in legacy root HTML files remain a separate security-cleanup task. No credentials were added to the new app.
 
 ## Cloudflare configuration (already completed by the user)
@@ -166,3 +166,15 @@ A missing `techniques.id` heading blocks technique saves and safe pending-entry 
 ### Complete technique-header repair (v17)
 
 The reported legacy tab lacked both id and created_at. The recovery action is now **Repair technique headers & retry** and validates the exact shared TECHNIQUE_HEADERS list used by journal saves (`label, position, map_node, description, date, gi, id, created_at`). It recognizes the existing library by label/position, rejects ambiguous writable headings, appends all other missing supported headings together beyond every populated column, verifies the complete set, then retries the same pending entry. Existing cells and legacy rows remain unchanged. This supersedes the earlier ID-only repair; an already repaired ID column is reused without adding another one.
+
+## Editing saved journal entries
+
+Open a session in Your journal and choose **Edit entry**. The separate editor supports date, session type, gi/no-gi, focus, standup, technique session notes, drillwork, rolls, pearls, fundamentals, and notes. Existing technique/takedown labels, positions, map links, IDs, and created_at remain fixed. The date is read from the saved row; recovering an old pending draft does not silently change it to today's date.
+
+The editor keeps its own draft/pending confirmation in IndexedDB (`journal-edit-draft`, `journal-edit-pending`), so a new workout draft is not replaced. Close editor retains the edit; Resume journal edit reopens it. A pending confirmation locks only that edit's fields until retry, while the rest of the app remains usable. Discarding a pending local edit requires an explicit confirmation and does not undo any changes already saved in Sheets.
+
+Saving locates the current physical row by freshly read stable ID and headers, rejects missing/duplicate IDs and observed conflicting changes, then sends known-cell journal/pearl/owned-technique metadata updates in a single atomic Sheets batch. It does not append a second journal row. Existing unrelated rows and unknown extra columns are preserved. Pearl text/date/gi projections follow the corrected journal: matching pearl rows retain their extra metadata, new pearls are appended, and removed projections have only known owned fields cleared (no physical rows or extra cells are deleted). Fundamentals and map journal descriptions update naturally from the source journal row. Shared technique descriptions remain independent; date/gi corrections update only instances created by this session with metadata still matching the old session values.
+
+Read-back confirms the edited journal and linked pearls before the local pending edit is cleared. A retry after a committed but lost response recognizes the desired values, so it does not append duplicate pearls. Expected-value checks detect conflicts already visible on the final read; Google Sheets cannot prevent a concurrent external row change between that read and the batch write. Rebuild the notebook to include corrections; existing PDF/HTML files remain snapshots.
+
+`python tests/journal_edit_smoke.py` tests correcting October 16 to November 2, linked pearl changes/removal, stable-ID editing after row re-sorts, preservation of original/extra cells and new drafts, shared technique protection, one-batch writes, uncertain-response reconciliation, conflicts, another browser's read-back, and phone/tablet form widths. All records are synthetic; this does not claim to have edited the user's actual entry.

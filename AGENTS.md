@@ -23,7 +23,8 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - Journal pending recovery uses fresh identity-header-validated reads of every affected tab before unlocking an entry. Never unlock if any related row exists or a required read fails. Keep partial writes queued; per-entry retry and starting a separate draft remain available. Atomic local recovery preserves a backup under journal-recovery-backups. Do not tell the user to clear browser/site data to recover a draft. A blocked queue must not prevent reading saved data or independent private lesson saves.
 - Library pending saves use library-pending and library-draft in IndexedDB; retry from Resume pending save. Reconcile stable IDs and verify read-back before clearing.
 - Notebook categories follow the Sheet category order. Include a landscape visual map with internal links to node notes and technique descriptions, and retain every raw source/configuration cell in source chapters. PDF Caveat headings use a static regular instance, full embedding, and contextual alternates disabled to preserve visible and searchable glyphs.
-- Next phases: full-history AI Sensei interpretation, saved-entry editing, resource editing, and PWA/offline shell. Do not expose nonworking AI endpoints or invent Sheet schemas.
+- Saved journal entries now have Edit entry. A separate persisted journal-edit draft preserves the new-workout draft. Updates use fresh stable-ID/header lookup, expected-value conflict checks, one atomic Sheets batch, and read-back. Update owned pearl projections (preserving extra/unrelated cells); date/gi changes affect only technique instances created by that session whose metadata still matches the original. Keep shared technique descriptions, IDs, created_at, technique labels/positions, and map links intact.
+- Next phases: full-history AI Sensei interpretation, resource editing, and PWA/offline shell. Do not expose nonworking AI endpoints or invent Sheet schemas.
 - Sheet contract: `docs/GOOGLE_SHEET.md`. The uploaded handoff is historical context, not proof of deployed behavior; its private planning notes are not part of the public test release.
 
 ## Data and infrastructure
@@ -46,6 +47,7 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - `node tests/organization.test.mjs`
 - `node tests/privates.test.mjs`
 - `node tests/technique_id_repair.test.mjs`
+- `python tests/journal_edit_smoke.py` (mocked date/details editing, row sorting, pearl updates/removal, lost-response retries, conflicts, new-draft preservation, second-device reads)
 - `python tests/recovery_privates_smoke.py` (mocked frozen-draft recovery, partial writes, independent retry, private lessons, video/export links, second-device reads)
 - `python tests/organization_smoke.py` (mocked migration, editing, conflict/retry handling, landscape exports, second-device reads)
 - `python tests/library_smoke.py` (mocked direct writes, categories, interrupted-save recovery, map links, and mobile forms)

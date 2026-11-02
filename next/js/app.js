@@ -1,3 +1,4 @@
+import {JournalEditor} from './journal-edit.js?v=18';
 import {PrivateLessons} from './privates.js?v=14';
 import {OrganizationEditor} from './organization-editor.js?v=12';
 import {ORG_TABS} from './organization.js?v=12';
@@ -6,9 +7,9 @@ import {makeBookModel,notebookHTML} from './book-model.js?v=14';
 import {StrategyMap} from './strategy-map.js?v=12';
 import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=14';
 import {read,write,remove,writeBatch} from './store.js';
-import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry,readOrganization,setupOrganization,saveOrganizationRecord,inspectPendingEntry,readPrivates,syncPrivateLesson,repairTechniqueHeaders,TECHNIQUE_HEADERS} from './sheets.js?v=17';
+import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry,readOrganization,setupOrganization,saveOrganizationRecord,inspectPendingEntry,readPrivates,syncPrivateLesson,repairTechniqueHeaders,TECHNIQUE_HEADERS,updateJournalEntry} from './sheets.js?v=18';
 import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=12';
-import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=14';
+import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=18';
 const $=id=>document.getElementById(id);
 let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='',category='',needsTechniqueRepair=false;
 let workbook=null;let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
@@ -78,7 +79,7 @@ function updateExistingOptions(){
   setValue(id,previous||draft.links?.[isTakedown?'existingTakedown':'existingTechnique']||'');
  }
 }
-function controls(){renderPendingSaves();privateLessons.setBusy(busy);libraryEditor.setBusy(busy);organizationEditor.setBusy(busy);const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect','prep-refresh','search-refresh','resources-refresh','book-build','book-html'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
+function controls(){renderPendingSaves();journalEditor.setBusy(busy);privateLessons.setBusy(busy);libraryEditor.setBusy(busy);organizationEditor.setBusy(busy);const pending=queue.some(entry=>entry.id===draft.id);for(const id of ['organize','manual','save','connect','refresh','refresh-knowledge','new-draft','disconnect','prep-refresh','search-refresh','resources-refresh','book-build','book-html'])$(id).disabled=busy;for(const id of ['organize','manual','save'])$(id).disabled=busy||pending;for(const input of $('entry-form').querySelectorAll('input,textarea,select'))input.disabled=busy||pending;$('transcript').readOnly=busy||pending;$('organize').textContent=busy?'Please wait…':'Organize my recap';formVisibility();if(pending)$('position').disabled=true;}
 $('entry-form').addEventListener('input',()=>{formVisibility();changed();});
 $('transcript').addEventListener('input',changed);
 for(const [checkbox,existing]of [['new-technique','existing-technique'],['new-takedown','existing-takedown']])$(checkbox).addEventListener('change',()=>{if($(checkbox).checked)$(existing).value='';formVisibility();changed();});
@@ -117,6 +118,8 @@ async function initializeOrganization(){
 const organizationEditor=new OrganizationEditor({host:$('organization-editor'),getSnapshots:()=>snapshots,authorize:ensureAccess,onBusy:value=>{busy=value;controls();},onSetup:initializeOrganization,onRefresh:async()=>retainOrganization(await readOrganization()),onSave:async change=>{const updated=await saveOrganizationRecord(change.tab,change.object,{expected:change.expected});await retainOrganization({[change.tab]:updated,...await readOrganization()});}});
 $('technique-categories').onclick=event=>{const button=event.target.closest('[data-category]');if(!button)return;category=button.dataset.category;selected='';render();};
 const privateLessons=new PrivateLessons({getSnapshot:()=>snapshots.privates,authorize:ensureAccess,onBusy:value=>{busy=value;controls();},onSave:async entry=>{const snapshot=await syncPrivateLesson(entry);snapshots.privates=snapshot;await write('mirror-privates',snapshot);},onRefresh:async()=>{const snapshot=await readPrivates();snapshots.privates=snapshot;await write('mirror-privates',snapshot);}});
+const journalEditor=new JournalEditor({host:$('journal-edit-host'),authorize:ensureAccess,isPending:id=>queue.some(entry=>entry.id===id),onBusy:value=>{busy=value;controls();},onNotice:status,onSave:async change=>{const updated=await updateJournalEntry(change);for(const [tab,snapshot]of Object.entries(updated)){snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}cached=false;render();}});
+$('recent-list').onclick=event=>{const button=event.target.closest('[data-edit-entry]');if(!button||busy)return;const row=snapshots.data?.rows.find(row=>row.id===button.dataset.editEntry);if(row)journalEditor.open(row).catch(error=>status(error.message,true));};
 const strategyMap=new StrategyMap({viewport:$('map-viewport'),holder:$('map-holder'),select:$('map-position'),zoomIn:$('map-in'),zoomOut:$('map-out'),fit:$('map-fit'),onSelect:key=>{location.hash='strategy/'+encodeURIComponent(key);}});
 const playback=new PrepPlayback({select:$('prep-voice'),state:$('prep-playback'),play:$('prep-play'),pause:$('prep-pause'),stop:$('prep-stop')});
 function render(){
@@ -263,7 +266,7 @@ $('entry-form').onsubmit=async event=>{
 };
 $('new-draft').onclick=async()=>{if(!confirm('Start a new draft? Pending saves are kept; this draft will be cleared.'))return;try{await resetDraft();status('Ready for a new session.');}catch(error){status(error.message,true);}};
 $('save-settings').onclick=async()=>{try{const value=$('worker-url').value.trim();if(value){const url=new URL(value);if(url.protocol!=='https:'&&!(['localhost','127.0.0.1'].includes(url.hostname)&&url.protocol==='http:'))throw new Error('Use an HTTPS Worker URL.');if(url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw new Error('Enter the Worker origin only, without a path or credentials.');}await write('worker-url',value);status('Connection setting saved on this device.');}catch(error){status(error.message,true);}};
-$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.8.3',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,pendingLibrarySave:!!libraryEditor.pending,pendingOrganizationSave:!!organizationEditor.pending,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
+$('diagnostics').onclick=async()=>{const report=JSON.stringify({version:'next-0.9',time:new Date().toISOString(),userAgent:navigator.userAgent,input:'native-dictation-or-text',pendingSaves:queue.length,pendingLibrarySave:!!libraryEditor.pending,pendingOrganizationSave:!!organizationEditor.pending,pendingJournalEdit:!!journalEditor.pending,storageFailed,errors:logs},null,2);try{await navigator.clipboard.writeText(report);status('Diagnostics copied. No tokens or training content are included.');}catch{status(report);}};
 window.addEventListener('online',async()=>{if(busy||!queue.length)return;busy=true;controls();try{await flushQueue();status('Pending entries synced to Google Sheets.');}catch(error){status(`Pending sync: ${error.message}`,true);}finally{busy=false;controls();}});
 async function restoreEarlierRecording(){
  const metadata=await read('recording');if(!metadata)return;const chunks=[];for(let i=0;i<metadata.count;i++){const chunk=await read(`audio-${metadata.id}-${i}`);if(chunk)chunks.push(chunk);}if(!chunks.length)return;
@@ -278,5 +281,5 @@ try{
  workbook=await read('workbook')||null;for(const tab of new Set(['data','techniques','pearls','privates',...Object.values(ORG_TABS),...Object.keys(workbook?.sheets||{})])){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
  $('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;
  updateExistingOptions();fillFields();if(draft.reviewOpen)$('review').hidden=false;
- await restoreEarlierRecording();await libraryEditor.restore();await organizationEditor.restore();await privateLessons.restore();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);else if(libraryEditor.pending)status('A library addition has a pending save. Open Techniques, Pearls, Fundamentals, or Strategy links and choose Resume pending save.');
+ await restoreEarlierRecording();await libraryEditor.restore();await organizationEditor.restore();await privateLessons.restore();await journalEditor.restore();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);else if(libraryEditor.pending)status('A library addition has a pending save. Open Techniques, Pearls, Fundamentals, or Strategy links and choose Resume pending save.');
 }catch(error){storageFailed=true;status('Local storage could not be loaded. Keep this page open and copy your words before leaving.',true);}
