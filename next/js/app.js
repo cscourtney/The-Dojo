@@ -3,7 +3,7 @@ import {PrivateLessons} from './privates.js?v=14';
 import {OrganizationEditor} from './organization-editor.js?v=12';
 import {ORG_TABS} from './organization.js?v=12';
 import {LibraryEditor} from './library-editor.js?v=12';
-import {makeBookModel,notebookHTML} from './book-model.js?v=14';
+import {makeBookModel,notebookHTML} from './book-model.js?v=19';
 import {StrategyMap} from './strategy-map.js?v=12';
 import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=14';
 import {read,write,remove,writeBatch} from './store.js';
@@ -178,8 +178,8 @@ async function buildNotebook(format){
    bookDownload(result.bytes,'application/pdf',`The-Dojo-Notebook-${stamp}.pdf`,'Download PDF notebook');
    bookMessage(`Ready: ${result.pages} pages, ${result.model.tabCount} Sheet tabs, ${result.model.rowCount} original data rows. Snapshot ${latest.fetchedAt}. Use your PDF reader to search or print.${pendingNotice}`);
   }else{
-   const model=makeBookModel(latest);const {notebookFonts}=await import('./book-fonts.js?v=7');const fontCSS=await notebookFonts();bookDownload(notebookHTML(model,{fontCSS,paper:!$('book-white-paper').checked}),'text/html;charset=utf-8',`The-Dojo-Notebook-${stamp}.html`,'Download searchable HTML notebook');
-   bookMessage(`Ready: ${model.tabCount} Sheet tabs and ${model.rowCount} original data rows, with an index and search. Open the downloaded HTML file in a browser.${pendingNotice}`);
+   const model=makeBookModel(latest);const {notebookFonts}=await import('./book-fonts.js?v=7');const fontCSS=await notebookFonts();bookDownload(notebookHTML(model,{fontCSS,paper:!$('book-white-paper').checked}),'text/html;charset=utf-8',`The-Dojo-Notebook-${stamp}.html`,'Download searchable HTML notebook');const open=node('a','Open HTML notebook');open.href=bookURLs.at(-1);open.target='_blank';open.rel='noopener';open.className='download-link';$('book-downloads').append(open);
+   bookMessage(`Ready: ${model.tabCount} Sheet tabs and ${model.rowCount} original data rows, with an index and search. Use Open HTML notebook to turn pages, search, or print.${pendingNotice}`);
   }
  }catch(error){bookMessage(`Notebook export: ${error.message}`,true);}finally{busy=false;controls();}
 }

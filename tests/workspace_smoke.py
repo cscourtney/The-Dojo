@@ -88,9 +88,10 @@ def main():
    assert footer_to_toc, 'Every PDF page must link back to the contents'
   assert links>10
   page.locator('#book-html').click();expect(page.get_by_role('link',name='Download searchable HTML notebook')).to_be_visible()
+  expect(page.get_by_role('link',name='Open HTML notebook',exact=True)).to_have_attribute('target','_blank')
   with page.expect_download() as info:page.get_by_role('link',name='Download searchable HTML notebook').click()
   info.value.save_as('/tmp/dojo-notebook-fixture.html')
-  notebook=context.new_page();notebook.set_content(Path('/tmp/dojo-notebook-fixture.html').read_text());notebook.locator('#find').fill('UNNAMED PRIVATE CELL');expect(notebook.locator('#count')).to_contain_text('1 matching entries')
+  notebook=context.new_page();notebook.set_content(Path('/tmp/dojo-notebook-fixture.html').read_text());notebook.wait_for_selector('#reader-shell[data-ready="true"]',timeout=60000);notebook.locator('#find').fill('UNNAMED PRIVATE CELL');expect(notebook.locator('#count')).to_contain_text('1 matching entries')
   # All new views fit inside phone and iPad layouts, including the separately scrollable map.
   for label,width,height in [('phone',390,844),('ipad-portrait',768,1024),('ipad-landscape',1024,768)]:
    page.set_viewport_size({'width':width,'height':height})

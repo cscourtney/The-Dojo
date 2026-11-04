@@ -16,6 +16,7 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - Categories/order, node titles/types/coordinates/notes, and connection labels/enabled state can be edited in the app or Sheet. Use stable IDs, fresh headers/physical-row lookup, known-cell updates that preserve extra columns, read-back, and expected-value conflict checks. No drag editor or delete/rename-ID flow is implemented.
 - Notebook export reads all Sheet tabs in the signed-in browser. PDF/HTML generation is local; never commit private workbook data or call a third-party PDF service. Preserve unnamed/duplicate-column cells in the book even if a tab cannot be interpreted by app views. Do not call a test-fixture PDF the user's book.
 - App appearance: warm paper, Caveat only for The Dojo branding/title, clean system text for navigation, forms, headings, and entries. Preserve the original artwork.
+- Searchable HTML notebooks use a standalone two-page spiral-bound reader with real 3D page-turn animation, keyboard/swipe/jump controls, full-source search/navigation, map zoom, and a list fallback. Narrow phones show one page; iPad widths show a spread. Preserve every source field through pagination, honor reduced motion, and print the complete source (including the landscape map), never just the visible spread. No third-party reader or network request in downloaded HTML.
 - Notebook appearance: user selected option A (Patrick Hand body, Caveat headings, warm unlined paper). Keep Back to contents on every PDF page and the white-background print option.
 - Direct additions are supported from Techniques/Pearls/Fundamentals and map positions. Direct fundamentals use data.entry_type=fundamental; map references use data.entry_type=reference. Exclude both from workout history. Direct pearls use a direct: UUID entry_id, not a journal link. Never silently add Sheet columns. Category browsing uses the existing danaher_category values; the historical exact 15-skill list is absent from the supplied sources, so do not invent it.
 - Privates is a separate blank lesson form with date, optional instructor/focus/video URL, and notes. It reads/writes the existing privates tab; first save may create it or add missing supported headers after every populated column, preserving existing/unnamed data. No automatic technique/map creation. Include private notes and clickable safe video links in notebook exports.
@@ -43,6 +44,7 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - `node tests/sheet_headers.test.mjs`
 - `node tests/insights.test.mjs`
 - `node tests/book_model.test.mjs`
+- `python tests/book_reader_smoke.py` (standalone paginated HTML; all-field retention, page turns/search/links, map zoom, phone/iPad reflow, reduced motion, full print)
 - `node tests/library.test.mjs`
 - `node tests/organization.test.mjs`
 - `node tests/privates.test.mjs`
