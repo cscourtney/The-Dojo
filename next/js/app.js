@@ -1,3 +1,4 @@
+import {validateReferenceNotes} from './course-references.js?v=20';
 import {JournalEditor} from './journal-edit.js?v=18';
 import {PrivateLessons} from './privates.js?v=14';
 import {OrganizationEditor} from './organization-editor.js?v=12';
@@ -5,7 +6,7 @@ import {ORG_TABS} from './organization.js?v=12';
 import {LibraryEditor} from './library-editor.js?v=12';
 import {makeBookModel,notebookHTML} from './book-model.js?v=19';
 import {StrategyMap} from './strategy-map.js?v=12';
-import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=14';
+import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=20';
 import {read,write,remove,writeBatch} from './store.js';
 import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry,readOrganization,setupOrganization,saveOrganizationRecord,inspectPendingEntry,readPrivates,syncPrivateLesson,repairTechniqueHeaders,TECHNIQUE_HEADERS,updateJournalEntry} from './sheets.js?v=18';
 import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=12';
@@ -121,7 +122,7 @@ const privateLessons=new PrivateLessons({getSnapshot:()=>snapshots.privates,auth
 const journalEditor=new JournalEditor({host:$('journal-edit-host'),authorize:ensureAccess,isPending:id=>queue.some(entry=>entry.id===id),onBusy:value=>{busy=value;controls();},onNotice:status,onSave:async change=>{const updated=await updateJournalEntry(change);for(const [tab,snapshot]of Object.entries(updated)){snapshots[tab]=snapshot;await write('mirror-'+tab,snapshot);}cached=false;render();}});
 $('recent-list').onclick=event=>{const button=event.target.closest('[data-edit-entry]');if(!button||busy)return;const row=snapshots.data?.rows.find(row=>row.id===button.dataset.editEntry);if(row)journalEditor.open(row).catch(error=>status(error.message,true));};
 const strategyMap=new StrategyMap({viewport:$('map-viewport'),holder:$('map-holder'),select:$('map-position'),zoomIn:$('map-in'),zoomOut:$('map-out'),fit:$('map-fit'),onSelect:key=>{location.hash='strategy/'+encodeURIComponent(key);}});
-const playback=new PrepPlayback({select:$('prep-voice'),state:$('prep-playback'),play:$('prep-play'),pause:$('prep-pause'),stop:$('prep-stop')});
+const playback=new PrepPlayback({state:$('prep-playback'),play:$('prep-play'),pause:$('prep-pause'),stop:$('prep-stop')});
 function render(){
  libraryEditor.update(view,selected);organizationEditor.update();
  const journal=view==='journal',knowledge=['techniques','pearls','fundamentals','strategy'].includes(view);
@@ -146,6 +147,10 @@ window.addEventListener('hashchange',route);
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{selected='';category='';$('knowledge-filter').value='';if(location.hash==='#'+button.dataset.view)route();else location.hash=button.dataset.view;};
 $('journal-filter').oninput=()=>{selected='';limit=12;render();};$('journal-type').onchange=()=>{selected='';limit=12;render();};$('knowledge-filter').oninput=()=>{selected='';render();};$('more-sessions').onclick=()=>{limit+=12;render();};
 $('history-query').oninput=()=>renderSearch($('history-results'),snapshots,$('history-query').value);
+$('reference-import').onchange=async event=>{
+ const file=event.target.files[0];if(!file)return;
+ try{if(file.size>2000000)throw new Error('Choose a reference JSON file smaller than 2 MB.');const rows=validateReferenceNotes(JSON.parse(await file.text()));await write('course-reference-notes',rows);snapshots.__course_references={rows};$('reference-import-state').textContent=`${rows.length} reference notes saved on this device. Keep your external backup for other devices.`;render();}catch(error){$('reference-import-state').textContent=error.message;}finally{event.target.value='';}
+};
 $('resource-query').oninput=()=>renderResources($('resource-list'),snapshots,$('resource-query').value);
 async function loadCompleteWorkbook(){
  const latest=await readWorkbook();
@@ -279,7 +284,9 @@ try{
  // Preserve unfinished saves made before explicit creation toggles existed.
  for(const entry of queue){if(!Object.hasOwn(entry,'_createTechnique'))entry._createTechnique=!!entry.technique_label;if(!Object.hasOwn(entry,'_createTakedown'))entry._createTakedown=!!entry.takedown_label;}
  workbook=await read('workbook')||null;for(const tab of new Set(['data','techniques','pearls','privates',...Object.values(ORG_TABS),...Object.keys(workbook?.sheets||{})])){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
+ const referenceNotes=await read('course-reference-notes');if(referenceNotes){try{snapshots.__course_references={rows:validateReferenceNotes(referenceNotes)};}catch{$('reference-import-state').textContent='The saved reference import could not be read. Import your backup again.';}}
  $('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;
  updateExistingOptions();fillFields();if(draft.reviewOpen)$('review').hidden=false;
  await restoreEarlierRecording();await libraryEditor.restore();await organizationEditor.restore();await privateLessons.restore();await journalEditor.restore();route();controls();if(queue.length)status(`${queue.length} pending save(s) retained. Use Refresh & sync to finish.`);else if(libraryEditor.pending)status('A library addition has a pending save. Open Techniques, Pearls, Fundamentals, or Strategy links and choose Resume pending save.');
 }catch(error){storageFailed=true;status('Local storage could not be loaded. Keep this page open and copy your words before leaving.',true);}
+

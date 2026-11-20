@@ -14,13 +14,30 @@ export function makePrep(snapshots){
  if(goals[0])add('Your focus',goals[0].goal,{tab:'goals',row:goals[0]});
  else if(entries[0])add('Your latest focus',entries[0].lesson||entries[0].technique_label||entries[0].technique,{tab:'data',row:entries[0]});
  for(const row of mistakes.slice(0,2))add('Watch for',`${row.mistake||''}${row.fix?' — '+row.fix:''}`,{tab:'mistakes',row});
- if(entries[0])add('Last session',`${entries[0].date}: ${entries[0].rolls||entries[0].technique||entries[0].drillwork||entries[0].notes||''}`,{tab:'data',row:entries[0]});
- for(const row of pearls.slice(0,2))add('Carry this with you',row.pearl,{tab:'pearls',row});
+ if(entries[0])add('Last session',`${entries[0].date}: ${entries[0].rolls||entries[0].technique||entries[0].drillwork||entries[0].notes||entries[0].lesson||''}`,{tab:'data',row:entries[0]});
+ // Count explicitly labeled topics across distinct saved sessions. Frequency is
+ // evidence of repeated study, not evidence of failure or lack of progress.
+ const topics=new Map();
+ for(const row of entries){const label=text(row.position||row.technique_label||row.lesson);if(!label)continue;const key=normalize(label);const item=topics.get(key)||{label,count:0,row};item.count++;topics.set(key,item);}
+ const recurring=[...topics.values()].filter(item=>item.count>1).sort((a,b)=>b.count-a.count)[0];
+ if(recurring)add('Across your training',`${recurring.label} appears in ${recurring.count} saved sessions. Repeated study is a possible focus, not a diagnosis of a struggle.`,{tab:'data',row:recurring.row});
+ const focus=[goals[0]?.goal,mistakes[0]?.mistake,recurring?.label,entries[0]?.lesson].filter(Boolean).join(' ');
+ const terms=normalize(focus).replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(word=>word.length>2&&!STOP_WORDS.has(word));
+ const relevance=value=>terms.reduce((score,term)=>score+(normalize(value).split(/[^\p{L}\p{N}]+/u).includes(term)?1:0),0);
+ const relevantPearls=pearls.map((row,index)=>({row,index,score:relevance(row.pearl)})).sort((a,b)=>b.score-a.score||a.index-b.index);
+ for(const {row}of relevantPearls.slice(0,2))add('Carry this with you',row.pearl,{tab:'pearls',row});
+ const strategy=(snapshots.dojo_map_nodes?.rows||[]).filter(row=>row.notes).map(row=>({row,score:relevance(row.title+' '+row.notes)})).filter(item=>item.score>0).sort((a,b)=>b.score-a.score)[0];
+ if(strategy)add('Your strategy notes',strategy.row.notes,{tab:'dojo_map_nodes',row:strategy.row});
+ const privateLesson=sortedEntries(snapshots.privates?.rows||[]).find(row=>row.notes&&relevance((row.focus||'')+' '+row.notes)>0);
+ if(privateLesson)add('From your private lesson',privateLesson.notes,{tab:'privates',row:privateLesson});
+ // Listings and outlines are useful navigation, but do not contain the teaching.
+ const reference=(snapshots.__course_references?.rows||[]).filter(row=>row.kind==='official_written_breakdown').map(row=>({row,score:relevance(row.title+' '+row.tags.join(' '))})).filter(item=>item.score>0).sort((a,b)=>b.score-a.score)[0];
+ if(reference)add('Related written teaching',reference.row.summary,{tab:'__course_references',row:reference.row});
  const fundamental=entries.find(row=>row.fundamentals);
  if(fundamental)add('Fundamental',fundamental.fundamentals,{tab:'data',row:fundamental});
  const speaking=sections.map(section=>`${section.title}. ${section.body}`).join('\n\n');
  const missing=['data','goals','mistakes','pearls'].filter(tab=>!snapshots[tab]);
- const stale=['data','goals','mistakes','pearls'].filter(tab=>snapshots[tab]?.stale);
+ const stale=['data','goals','mistakes','pearls','privates','dojo_map_nodes'].filter(tab=>snapshots[tab]?.stale);
  return {builtAt:new Date().toISOString(),sections,text:speaking,missing,stale,estimatedSeconds:Math.round(speaking.split(/\s+/).filter(Boolean).length/2.5)};
 }
 const ALIASES={back:['back','rear','rnc'],passing:['passing','pass','passes','gpass'],guard:['guard','guards'],mistakes:['mistake','mistakes','error','errors'],takedowns:['takedown','takedowns','standup'],kimura:['kimura','kimuras']};
@@ -58,3 +75,4 @@ export function resourceURL(resource){
  }
  return url.href;
 }
+

@@ -188,3 +188,15 @@ The reader measures the embedded fonts and paginates the complete content locall
 Print / Save PDF always prints the original complete source chapters with the existing landscape map styling and fixed contents link, not just the displayed spread or the animation layers. The separately generated PDF notebook keeps its existing layout. All fonts, reader code, CSS, and Sheet content are embedded in the HTML file; nothing is uploaded to a reader service. Exports remain snapshots and need rebuilding after Sheet changes. Desktop Chromium and phone/iPad viewports are tested; this is not a claim of real iPad Safari/Files-preview compatibility. Open the generated HTML in a browser that allows its embedded JavaScript; an inert file preview can still show the original source text.
 
 `python tests/book_reader_smoke.py` validates all original field values across page boundaries, no clipped pages, 3D transitions, search to a matching continuation, contents/map/video links, map zoom, list mode, keyboard/jump/touch input, responsive reflow, reduced motion, complete printing with landscape pages, and no HTTP/HTTPS requests from the self-contained document. All workbook content in the tests is synthetic.
+
+
+
+## Class Prep and private reference notes (v20)
+
+Class Prep considers explicit topics across the loaded workout history, relevant older pearls, matching strategy-node notes, and relevant private lesson notes. Topic counts indicate repeated study, not inferred failure. It remains deterministic and is labeled as using no AI call; full-history AI Sensei is not implemented in this release. Refresh all sources to load the workbook.
+
+The voice picker is removed. Playback prefers an installed Australian female voice named Karen or Catherine; otherwise it uses the device default. Play/Pause/Stop remain. Actual iPad voice availability and screen-off playback need device verification.
+
+Resources accepts a private reference-notes JSON array with unique id, title, summary, kind, evidence, specific http(s) url, and string tags. Imports are validated and stored in IndexedDB on that device, separate from the Sheet-backed library. Keep the external reference backup to restore them on another device. Imports replace only the previous local reference import and never alter training records or Sheet schemas. Class Prep can select matching official_written_breakdown references; outlines and unwatched video listings are excluded from teaching cues. Private course catalogs, transcripts, and reference imports are not bundled in the public app.
+
+Verified with synthetic Node tests for older-source retrieval, source validation, voice selection and playback controls, plus local Chrome rendering/playback checks. This does not claim live Google Sheets or iPad verification.
