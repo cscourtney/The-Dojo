@@ -4,7 +4,7 @@ import {SHEET_ID} from './sheets.js?v=9';
 export function preferredPrepVoice(voices){return voices.find(voice=>/^en[-_]AU$/i.test(voice.lang)&&/karen|catherine|female/i.test(voice.name))||null;}
 const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 export function sourceLink(source,snapshots){
- if(source.tab==='__course_references'){const url=resourceURL(source.row);if(!url)return el('span','Source link unavailable');const link=el('a','Read source · '+source.row.kind.replaceAll('_',' '));link.href=url;link.target='_blank';link.rel='noopener';return link;}
+ if(source.tab==='__course_references'){const url=resourceURL(source.row);if(!url)return el('span','Source link unavailable');const link=el('a',source.row.kind==='machine_transcript_unreviewed'?'Open course account (see lesson above)':'Read source · '+source.row.kind.replaceAll('_',' '));link.href=url;link.target='_blank';link.rel='noopener';return link;}
  if(source.tab==='privates'&&source.row.id){const link=el('a','Open private lesson');link.href='#privates/'+encodeURIComponent(source.row.id);return link;}
  const link=el('a',source.tab==='data'&&source.row.id?'Open journal entry':'Open source Sheet tab');
  if(source.tab==='data'&&isReference(source.row)){link.textContent=source.row.entry_type==='fundamental'?'Open fundamental':'Open map reference';link.href=source.row.entry_type==='fundamental'?'#fundamentals/'+encodeURIComponent(source.row.id):'#strategy/'+encodeURIComponent(source.row.map_node);}
@@ -28,14 +28,15 @@ export function renderSearch(container,snapshots,query){
  for(const result of results){const article=el('article',undefined,'session');article.append(el('small',`${result.tab}${result.date?' · '+result.date:''}${result.stale?' · cached':''}`),el('h3',result.title),el('p',result.detail),sourceLink({tab:result.tab,row:result.row},snapshots));container.append(article);}
  if(!results.length)container.append(el('p','No matching records in the loaded tabs. Try fewer words, or refresh all sources.','empty-state'));
 }
-export function renderResources(container,snapshots,query=''){
+export function renderResources(container,snapshots,query='',limit=40){
  container.replaceChildren();const all=snapshots.library?.rows;
  if(!all)container.append(el('p','Refresh all sources to load the library from Google Sheets.','empty-state'));
  const imported=(snapshots.__course_references?.rows||[]).filter(row=>!query||[row.title,row.summary,...row.tags].join(' ').toLowerCase().includes(query.toLowerCase()));
- for(const reference of imported){const article=el('article',undefined,'session');article.append(el('h3',reference.title),el('small','Imported reference · '+reference.kind.replaceAll('_',' ')),el('p',reference.summary),el('p',reference.evidence,'hint'),sourceLink({tab:'__course_references',row:reference},snapshots));container.append(article);}
+ for(const reference of imported.slice(0,limit)){const article=el('article',undefined,'session');article.append(el('h3',reference.title),el('small','Imported reference · '+reference.kind.replaceAll('_',' ')),el('p',reference.summary),el('p',reference.evidence,'hint'),sourceLink({tab:'__course_references',row:reference},snapshots));container.append(article);}
  const rows=(all||[]).filter(row=>!query||Object.values(row).join(' ').toLowerCase().includes(query.toLowerCase()));
  container.append(el('p',`${rows.length} Sheet resources · ${imported.length} imported references · ${!all?'Sheet library not loaded':snapshots.library?.stale?'cached on this device':'from Google Sheets'}`,'hint'));
- for(const resource of rows){const article=el('article',undefined,'session');article.append(el('h3',resource.title||'Untitled resource'),el('small',[resource.source,resource.type,resource.tags].filter(Boolean).join(' · ')));if(resource.notes)article.append(el('p',resource.notes));const url=resourceURL(resource);if(url){const link=el('a','Open lesson'+(Number(resource.start_seconds)>0?' at '+Math.floor(resource.start_seconds/60)+':'+String(Math.floor(resource.start_seconds%60)).padStart(2,'0'):''));link.href=url;link.target='_blank';link.rel='noopener';article.append(link);}else article.append(el('p','Specific video or lesson URL needed in the Sheet; homepage links are not opened.','source-notice'));container.append(article);}
+ for(const resource of rows.slice(0,limit)){const article=el('article',undefined,'session');article.append(el('h3',resource.title||'Untitled resource'),el('small',[resource.source,resource.type,resource.tags].filter(Boolean).join(' · ')));if(resource.notes)article.append(el('p',resource.notes));const url=resourceURL(resource);if(url){const link=el('a','Open lesson'+(Number(resource.start_seconds)>0?' at '+Math.floor(resource.start_seconds/60)+':'+String(Math.floor(resource.start_seconds%60)).padStart(2,'0'):''));link.href=url;link.target='_blank';link.rel='noopener';article.append(link);}else article.append(el('p','Specific video or lesson URL needed in the Sheet; homepage links are not opened.','source-notice'));container.append(article);}
+ if(imported.length>limit||rows.length>limit){container.append(el('p','Showing the first '+limit+' matches from each library. Search to narrow the results.','hint'));const more=el('button','Show more resources','quiet');more.onclick=()=>renderResources(container,snapshots,query,limit+40);container.append(more);}
 }
 export class PrepPlayback{
  constructor({state,play,pause,stop}){

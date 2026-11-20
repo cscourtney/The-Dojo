@@ -6,7 +6,7 @@ import {ORG_TABS} from './organization.js?v=12';
 import {LibraryEditor} from './library-editor.js?v=12';
 import {makeBookModel,notebookHTML} from './book-model.js?v=19';
 import {StrategyMap} from './strategy-map.js?v=12';
-import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=20';
+import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=21';
 import {read,write,remove,writeBatch} from './store.js';
 import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry,readOrganization,setupOrganization,saveOrganizationRecord,inspectPendingEntry,readPrivates,syncPrivateLesson,repairTechniqueHeaders,TECHNIQUE_HEADERS,updateJournalEntry} from './sheets.js?v=18';
 import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=12';
@@ -149,7 +149,7 @@ $('journal-filter').oninput=()=>{selected='';limit=12;render();};$('journal-type
 $('history-query').oninput=()=>renderSearch($('history-results'),snapshots,$('history-query').value);
 $('reference-import').onchange=async event=>{
  const file=event.target.files[0];if(!file)return;
- try{if(file.size>2000000)throw new Error('Choose a reference JSON file smaller than 2 MB.');const rows=validateReferenceNotes(JSON.parse(await file.text()));await write('course-reference-notes',rows);snapshots.__course_references={rows};$('reference-import-state').textContent=`${rows.length} reference notes saved on this device. Keep your external backup for other devices.`;render();}catch(error){$('reference-import-state').textContent=error.message;}finally{event.target.value='';}
+ try{if(file.size>10000000)throw new Error('Choose a reference JSON file smaller than 10 MB.');const rows=validateReferenceNotes(JSON.parse(await file.text()));await write('course-reference-notes',rows);snapshots.__course_references={rows};$('reference-import-state').textContent=`${rows.length} reference notes saved on this device. Keep your external backup for other devices.`;render();}catch(error){$('reference-import-state').textContent=error.message;}finally{event.target.value='';}
 };
 $('resource-query').oninput=()=>renderResources($('resource-list'),snapshots,$('resource-query').value);
 async function loadCompleteWorkbook(){

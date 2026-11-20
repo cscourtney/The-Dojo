@@ -200,3 +200,8 @@ The voice picker is removed. Playback prefers an installed Australian female voi
 Resources accepts a private reference-notes JSON array with unique id, title, summary, kind, evidence, specific http(s) url, and string tags. Imports are validated and stored in IndexedDB on that device, separate from the Sheet-backed library. Keep the external reference backup to restore them on another device. Imports replace only the previous local reference import and never alter training records or Sheet schemas. Class Prep can select matching official_written_breakdown references; outlines and unwatched video listings are excluded from teaching cues. Private course catalogs, transcripts, and reference imports are not bundled in the public app.
 
 Verified with synthetic Node tests for older-source retrieval, source validation, voice selection and playback controls, plus local Chrome rendering/playback checks. This does not claim live Google Sheets or iPad verification.
+
+
+### Larger private reference imports (v21)
+
+Private reference JSON imports may be up to 10 MB, with the existing 1,000-note validation limit. Resources renders 40 matching notes and 40 Sheet resources initially, with Show more resources to reveal the next set. Search still examines all loaded records. Automatic transcripts keep their unreviewed label and identify the original course account link explicitly; they remain excluded from automatic teaching cues. No private course content is bundled in this release.
