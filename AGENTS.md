@@ -59,3 +59,13 @@ Chuck is building a personal BJJ app and is not a developer. Keep explanations s
 - After HTML structure changes, check div balance and JavaScript syntax. Browser interactions must also pass.
 - Final completion requires live HTTPS/iPad Safari testing by Chuck: native dictation, real AI interpretation, Sheet read-back, cross-device visibility. Distinguish implemented, locally tested, deployed, and iPad-verified.
 - Cloud tasks are already isolated. Use the current checkout; do not create a worktree unless asked.
+
+
+
+## AI Sensei continuation (v22)
+- User authorized the private course interpretation and personal AI encyclopedia build. The optional AI briefing supplements the existing deterministic Class Prep; use is explicit and never autoplay.
+- `/ask-sensei` and `/sensei-status` are implemented in the existing Worker. Keep `/parse-workout`, server-side key/model, allowed Google identities and rate limiter intact. Never place private corpus or training fixtures in Git.
+- Selected evidence is bounded after scanning loaded records. Ignore copied legacy duplicates; separate source classes and training topics from demonstrated struggles. Validate citations; retain uncertainty about noisy transcripts and visual mechanics.
+- Interpreted reference imports and generated briefings are currently local to each browser. Google Sheets remains training truth. Cross-device reference storage is pending.
+- Automatic approval review blocked transmitting actual private course-derived notes to the existing Cloudflare/Anthropic AI service. Do not retry that transmission or route it elsewhere until explicit approval identifies the private data and destination. Public synthetic checks are independent. Drive private backup update has a separate approval hold; do not use Git or another destination to bypass it.
+- `node --test tests/sensei.test.mjs tests/worker.test.mjs tests/insights.test.mjs tests/sheet_headers.test.mjs tests/organization.test.mjs` checks current public source. `tests/sensei-live.html` is a developer check with fictional evidence only. Never claim synthetic checks verify the private workbook or iPad.

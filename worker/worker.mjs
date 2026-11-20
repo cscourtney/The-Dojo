@@ -1,14 +1,17 @@
+import {SENSEI_SYSTEM,validateSenseiRequest,validateSenseiAnswer} from './sensei.mjs';
 const FIELDS = ['date','entry_type','gi','lesson','standup','technique','rolls','drillwork','pearls','fundamentals','notes','position','technique_label','takedown_label','map_node'];
 const DEFAULT_ORIGINS = ['https://cscourtney.github.io','http://localhost:8000','http://127.0.0.1:8000'];
 export default {
  async fetch(request, env) {
   const origin=request.headers.get('Origin')||'';
   const allowed=(env.ALLOWED_ORIGINS||DEFAULT_ORIGINS.join(',')).split(',').map(s=>s.trim());
-  const cors={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Vary':'Origin','Cache-Control':'no-store'};
+  const cors={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Vary':'Origin','Cache-Control':'no-store'};
   const reply=(data,status=200)=>Response.json(data,{status,headers:cors});
   if(!allowed.includes(origin))return Response.json({error:'Origin is not allowed.'},{status:403});
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
-  if(new URL(request.url).pathname!=='/parse-workout')return reply({error:'Unknown operation.'},404);
+  const operation=new URL(request.url).pathname;
+  if(operation==='/sensei-status'&&request.method==='GET')return reply({sensei:!!(env.ANTHROPIC_API_KEY&&env.MODEL&&env.ALLOWED_EMAILS&&env.AI_RATE_LIMITER),version:1});
+  if(!['/parse-workout','/ask-sensei'].includes(operation))return reply({error:'Unknown operation.'},404);
   if(request.method!=='POST')return reply({error:'Use POST.'},405);
   if(!env.ANTHROPIC_API_KEY||!env.MODEL||!env.ALLOWED_EMAILS)return reply({error:'AI service needs server configuration.'},503);
   if(!env.AI_RATE_LIMITER)return reply({error:'AI request limiter is not configured.'},503);
@@ -23,13 +26,25 @@ export default {
    if(user.email_verified!==true||typeof user.sub!=='string'||!emails.includes(String(user.email).toLowerCase()))return reply({error:'This Google account is not allowed to use Dojo AI.'},403);
    const limit=await env.AI_RATE_LIMITER.limit({key:user.sub});
    if(!limit.success)return reply({error:'Too many requests. Wait a minute before retrying.'},429);
-   if(Number(request.headers.get('Content-Length')||0)>80000)return reply({error:'Recap is too long. Split it into sessions.'},413);
+   const maxBody=operation==='/ask-sensei'?240000:80000;
+   if(Number(request.headers.get('Content-Length')||0)>maxBody)return reply({error:'Recap is too long. Split it into sessions.'},413);
    // Bound chunked bodies too; do not buffer an unlimited request.
    const reader=request.body?.getReader();if(!reader)return reply({error:'Missing recap.'},400);
    const chunks=[];let bytes=0;
-   for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>80000){await reader.cancel();return reply({error:'Recap is too long. Split it into sessions.'},413);}chunks.push(value);}
+   for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>maxBody){await reader.cancel();return reply({error:'Recap is too long. Split it into sessions.'},413);}chunks.push(value);}
    const buffer=new Uint8Array(bytes);let offset=0;for(const chunk of chunks){buffer.set(chunk,offset);offset+=chunk.byteLength;}
    let body;try{body=JSON.parse(new TextDecoder().decode(buffer));}catch{return reply({error:'Invalid request JSON.'},400);}
+   if(operation==='/ask-sensei'){
+    let evidence;try{evidence=validateSenseiRequest(body);}catch(error){return reply({error:error.message},400);}
+    const upstream=await fetch('https://api.anthropic.com/v1/messages',{
+     method:'POST',headers:{'Content-Type':'application/json','x-api-key':env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},signal:AbortSignal.timeout(55000),
+     body:JSON.stringify({model:env.MODEL,max_tokens:3200,system:SENSEI_SYSTEM,messages:[{role:'user',content:JSON.stringify(evidence)}]})
+    });
+    if(!upstream.ok)return reply({error:`AI provider HTTP ${upstream.status}. Your sources are unchanged.`},502);
+    const data=await upstream.json();if(data.stop_reason==='max_tokens')return reply({error:'The answer was cut short. Try a narrower question.'},502);
+    const text=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('').trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');
+    try{return reply({answer:validateSenseiAnswer(JSON.parse(text),evidence.sources)});}catch{return reply({error:'AI returned an answer with invalid evidence. Try a narrower question.'},502);}
+   }
    if(typeof body.transcript!=='string'||!body.transcript.trim()||body.transcript.length>20000)return reply({error:'Provide a recap of 1–20,000 characters.'},400);
    if(!/^\d{4}-\d{2}-\d{2}$/.test(body.today||'')||Number.isNaN(Date.parse(body.today)))return reply({error:'A valid local date is required.'},400);
    const upstream=await fetch('https://api.anthropic.com/v1/messages',{
@@ -48,3 +63,4 @@ export default {
   } catch(error){return reply({error:error.name==='TimeoutError'?'The AI service timed out. Your recap is retained.':'The AI service could not finish. Your recap is retained.',step:'service'},502);}
  }
 };
+

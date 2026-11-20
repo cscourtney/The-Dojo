@@ -205,3 +205,16 @@ Verified with synthetic Node tests for older-source retrieval, source validation
 ### Larger private reference imports (v21)
 
 Private reference JSON imports may be up to 10 MB, with the existing 1,000-note validation limit. Resources renders 40 matching notes and 40 Sheet resources initially, with Show more resources to reveal the next set. Search still examines all loaded records. Automatic transcripts keep their unreviewed label and identify the original course account link explicitly; they remain excluded from automatic teaching cues. No private course content is bundled in this release.
+
+
+## AI Sensei and interpreted course notes (v22)
+
+AI Sensei scans the loaded workbook and private reference import, deduplicates copied rows within each tab, and selects bounded relevant evidence. Older matching notes can outrank unrelated recent entries; a few recent sessions remain context. It distinguishes practice topics from reported weaknesses. Legacy serial dates are normalized for evidence labels without editing the Sheet. Journal fields retain their labels in AI context; Original recap duplicates are omitted from selection.
+
+The authenticated `/ask-sensei` Worker operation uses the existing allowed Google identities, server-side model/key, origin checks, body bounds, and rate limiter. It validates source IDs in the structured answer, but structural validation is not proof of semantic accuracy. The read-only `/sensei-status` operation reports availability. The original `/parse-workout` operation remains supported. No training writes or automatic library/map creation occur.
+
+Users can select training plus references, references only, or training only. Selected private context is sent to Cloudflare and Anthropic when the user asks. A generated briefing can be selected for Class Prep and native Play/Pause/Stop; the notes-only briefing remains available. The generated briefing and its evidence are stored locally, labeled with creation time, and are not silently rebuilt on refresh. Playback does not read citation metadata. Imports and generated briefings are device-local; cross-device private-reference storage and external backup refresh remain separate outstanding work.
+
+Imports preserve validated within-chapter citations for `ai_interpreted_course_note` cards. Raw transcripts retain their unreviewed status; interpreted notes describe their text-review scope. No private course/training payload is bundled in the public app or test pages.
+
+Validation: Node source selection/normalization, import citation bounds, answer citation validation, authentication/limits, and existing parser regression checks. Chrome synthetic fixture verifies rendering, source links, briefing persistence callback and selection. `tests/sensei-live.html` sends fictional evidence only; it does not read user Sheets or private imports. Local Google OAuth is not registered for 127.0.0.1:8000; authenticated live checks must use the existing registered GitHub Pages origin. Real private AI verification is awaiting explicit approval to transmit selected training records and course-derived text to the existing Cloudflare/Anthropic service. Actual iPad Safari verification remains outstanding.

@@ -1,4 +1,5 @@
-import {validateReferenceNotes} from './course-references.js?v=20';
+import {Sensei} from './sensei.js?v=22';
+import {validateReferenceNotes} from './course-references.js?v=22';
 import {JournalEditor} from './journal-edit.js?v=18';
 import {PrivateLessons} from './privates.js?v=14';
 import {OrganizationEditor} from './organization-editor.js?v=12';
@@ -6,13 +7,14 @@ import {ORG_TABS} from './organization.js?v=12';
 import {LibraryEditor} from './library-editor.js?v=12';
 import {makeBookModel,notebookHTML} from './book-model.js?v=19';
 import {StrategyMap} from './strategy-map.js?v=12';
-import {renderPrep,renderSearch,renderResources,PrepPlayback} from './workspace-tools.js?v=21';
+import {renderPrep,renderSearch,renderResources,PrepPlayback,sourceLink} from './workspace-tools.js?v=22';
 import {read,write,remove,writeBatch} from './store.js';
 import {connect,disconnect,accessToken,ensureAccess,readTab,readWorkbook,syncEntry,syncLibraryEntry,readOrganization,setupOrganization,saveOrganizationRecord,inspectPendingEntry,readPrivates,syncPrivateLesson,repairTechniqueHeaders,TECHNIQUE_HEADERS,updateJournalEntry} from './sheets.js?v=18';
 import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey,canonicalMapKey} from './journal.js?v=12';
 import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=18';
 const $=id=>document.getElementById(id);
 let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='',category='',needsTechniqueRepair=false;
+let aiBriefing=null;
 let workbook=null;let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
 function status(message,error=false){
  for(const id of ['status','review-status','workspace-status']){ $(id).hidden=false;$(id).textContent=message;$(id).classList.toggle('error',error); }
@@ -127,12 +129,12 @@ function render(){
  libraryEditor.update(view,selected);organizationEditor.update();
  const journal=view==='journal',knowledge=['techniques','pearls','fundamentals','strategy'].includes(view);
  $('journal-view').hidden=!journal;$('knowledge-view').hidden=!knowledge;$('strategy-map').hidden=view!=='strategy';if(view==='strategy'){strategyMap.update(snapshots,selected);strategyMap.load().catch(error=>status(error.message,true));}
- for(const type of ['prep','search','resources','notebook','privates'])$(type+'-view').hidden=view!==type;
+ for(const type of ['prep','sensei','search','resources','notebook','privates'])$(type+'-view').hidden=view!==type;
  for(const button of document.querySelectorAll('[data-view]')){if(button.dataset.view===view)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');}
  if(journal){const count=renderJournal(snapshots.data,{filter:$('journal-filter').value,type:$('journal-type').value,limit,selected,organization:snapshots});$('recent-state').textContent=`${cached?'Cached on this device':'From Google Sheets'} · ${count} sessions`;}
  else if(knowledge)renderKnowledge(view,snapshots,{filter:$('knowledge-filter').value,selected,category,cached:cached||!!(view==='pearls'?snapshots.pearls?.stale:view==='techniques'?snapshots.techniques?.stale:view==='fundamentals'?snapshots.data?.stale:snapshots.techniques?.stale||snapshots.data?.stale)});
  else if(view==='privates')privateLessons.render(selected);
- else if(view==='prep'){const prep=renderPrep($('prep-content'),snapshots);playback.update(prep.text);}
+ else if(view==='prep'){const prep=renderPrep($('prep-content'),snapshots);$('prep-content').hidden=!!aiBriefing;$('prep-ai-content').hidden=!aiBriefing;$('prep-use-notes').hidden=!aiBriefing;if(aiBriefing){$('prep-ai-content').replaceChildren(node('p','AI briefing · '+new Date(aiBriefing.generated_at).toLocaleString()+'. Based on the sources selected when created. Refreshing notes does not rebuild it.'),node('p',aiBriefing.answer.prep.text));const evidence=node('details');evidence.append(node('summary','Briefing sources'));for(const id of aiBriefing.answer.prep.source_ids||[]){const source=aiBriefing.sources.find(item=>item.id===id);if(!source)continue;const p=node('p',source.title+' · ');p.append(sourceLink({tab:source.tab,row:source.source_row},snapshots));evidence.append(p);if(source.evidence)evidence.append(node('p',source.evidence));}$('prep-ai-content').append(evidence);playback.update(aiBriefing.answer.prep.text);}else playback.update(prep.text);}
  else if(view==='search')renderSearch($('history-results'),snapshots,$('history-query').value);
  else if(view==='resources')renderResources($('resource-list'),snapshots,$('resource-query').value);
  const savedNodes=snapshots[ORG_TABS.nodes];if(savedNodes&&!savedNodes.missing&&!savedNodes.loadError){const value=$('map_node').value;addOptions($('map_node'),savedNodes.rows.map(row=>[row.id,row.title]));setValue('map_node',value);}
@@ -142,11 +144,13 @@ for(const button of document.querySelectorAll('[data-view]')){const option=node(
 $('section-menu').onchange=()=>{location.hash=$('section-menu').value;};
 function updateNavigation(){$('section-menu').value=view;$('nav-hint').hidden=true;}
 window.addEventListener('resize',updateNavigation);
-function route(){const previous=view;const [target,...parts]=location.hash.slice(1).split('/');view=['journal','techniques','pearls','fundamentals','strategy','prep','search','resources','notebook','privates'].includes(target)?target:'journal';try{selected=decodeURIComponent(parts.join('/'));if(view==='strategy')selected=canonicalMapKey(selected);}catch{selected='';}if(selected){category='';$('private-filter').value='';$('journal-filter').value='';$('journal-type').value='';$('knowledge-filter').value='';}if(previous!==view){category='';$('knowledge-filter').value='';}if(previous==='prep'&&view!=='prep')playback.cancel();render();updateNavigation();if(selected)$(view==='journal'?'recent-list':view==='privates'?'private-list':'knowledge-list').scrollIntoView({block:'start'});}
+function route(){const previous=view;const [target,...parts]=location.hash.slice(1).split('/');view=['journal','techniques','pearls','fundamentals','strategy','prep','sensei','search','resources','notebook','privates'].includes(target)?target:'journal';try{selected=decodeURIComponent(parts.join('/'));if(view==='strategy')selected=canonicalMapKey(selected);}catch{selected='';}if(selected){category='';$('private-filter').value='';$('journal-filter').value='';$('journal-type').value='';$('knowledge-filter').value='';}if(previous!==view){category='';$('knowledge-filter').value='';}if(previous==='prep'&&view!=='prep')playback.cancel();render();updateNavigation();if(selected)$(view==='journal'?'recent-list':view==='privates'?'private-list':'knowledge-list').scrollIntoView({block:'start'});}
 window.addEventListener('hashchange',route);
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>{selected='';category='';$('knowledge-filter').value='';if(location.hash==='#'+button.dataset.view)route();else location.hash=button.dataset.view;};
 $('journal-filter').oninput=()=>{selected='';limit=12;render();};$('journal-type').onchange=()=>{selected='';limit=12;render();};$('knowledge-filter').oninput=()=>{selected='';render();};$('more-sessions').onclick=()=>{limit+=12;render();};
 $('history-query').oninput=()=>renderSearch($('history-results'),snapshots,$('history-query').value);
+const sensei=new Sensei({getSnapshots:()=>snapshots,refreshTraining:loadCompleteWorkbook,authorize:ensureAccess,getToken:accessToken,getURL:()=>$('worker-url').value.trim(),saveBriefing:record=>write('sensei-briefing',record),onBriefing:record=>{aiBriefing=record;render();}});
+$('prep-use-notes').onclick=async()=>{await remove('sensei-briefing');aiBriefing=null;render();};
 $('reference-import').onchange=async event=>{
  const file=event.target.files[0];if(!file)return;
  try{if(file.size>10000000)throw new Error('Choose a reference JSON file smaller than 10 MB.');const rows=validateReferenceNotes(JSON.parse(await file.text()));await write('course-reference-notes',rows);snapshots.__course_references={rows};$('reference-import-state').textContent=`${rows.length} reference notes saved on this device. Keep your external backup for other devices.`;render();}catch(error){$('reference-import-state').textContent=error.message;}finally{event.target.value='';}
@@ -155,7 +159,7 @@ $('resource-query').oninput=()=>renderResources($('resource-list'),snapshots,$('
 async function loadCompleteWorkbook(){
  const latest=await readWorkbook();
  for(const [tab,snapshot]of Object.entries(latest.sheets)){
-  if(snapshot.readProblem){if(snapshots[tab])snapshots[tab].stale=true;continue;}
+  if(snapshot.readProblem){snapshots[tab]={...(snapshots[tab]||{rows:[]}),stale:true,loadError:true};continue;}
   await write('mirror-'+tab,snapshot);snapshots[tab]=snapshot;
  }
  await write('workbook',latest);workbook=latest;cached=false;render();return latest;
@@ -284,6 +288,7 @@ try{
  // Preserve unfinished saves made before explicit creation toggles existed.
  for(const entry of queue){if(!Object.hasOwn(entry,'_createTechnique'))entry._createTechnique=!!entry.technique_label;if(!Object.hasOwn(entry,'_createTakedown'))entry._createTakedown=!!entry.takedown_label;}
  workbook=await read('workbook')||null;for(const tab of new Set(['data','techniques','pearls','privates',...Object.values(ORG_TABS),...Object.keys(workbook?.sheets||{})])){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
+ const previousBriefing=await read('sensei-briefing');if(previousBriefing?.answer?.prep?.text&&previousBriefing.generated_at)aiBriefing=previousBriefing;
  const referenceNotes=await read('course-reference-notes');if(referenceNotes){try{snapshots.__course_references={rows:validateReferenceNotes(referenceNotes)};}catch{$('reference-import-state').textContent='The saved reference import could not be read. Import your backup again.';}}
  $('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;
  updateExistingOptions();fillFields();if(draft.reviewOpen)$('review').hidden=false;
