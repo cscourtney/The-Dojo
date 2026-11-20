@@ -1,9 +1,9 @@
-import {makeBookModel,termsForRecord} from './book-model.js?v=14';
+import {makeBookModel,termsForRecord} from './book-model.js?v=23';
 let libraries;
 function loadScript(path){return new Promise((resolve,reject)=>{const script=document.createElement('script');const timer=setTimeout(()=>{script.remove();reject(new Error('PDF library timed out. Retry while connected to the app.'));},20000);script.src=new URL(path,import.meta.url).href;script.onload=()=>{clearTimeout(timer);resolve();};script.onerror=()=>{clearTimeout(timer);script.remove();reject(new Error('PDF library could not load. Retry while connected to the app.'));};document.head.append(script);});}
 async function dependencies(){return libraries ||= (async()=>{if(!window.PDFLib)await loadScript('../vendor/pdf-lib.min.js');if(!window.fontkit)await loadScript('../vendor/fontkit.min.js');return {PDFLib:window.PDFLib,fontkit:window.fontkit};})().catch(error=>{libraries=null;throw error;});}
-export async function createNotebookPDF(workbook,onProgress=()=>{},{paper=true}={}){
- const model=makeBookModel(workbook);onProgress('Loading PDF fonts…');const {PDFLib,fontkit}=await dependencies();
+export async function createNotebookPDF(workbook,onProgress=()=>{},{paper=true,guides=[]}={}){
+ const model=makeBookModel(workbook,{guides});onProgress('Loading PDF fonts…');const {PDFLib,fontkit}=await dependencies();
  const {PDFDocument,rgb,PDFName,PDFHexString,PDFString}=PDFLib;
  const pdf=await PDFDocument.create();pdf.registerFontkit(fontkit);
  const fontBytes=await Promise.all(['DejaVuSans.ttf','DejaVuSans-Bold.ttf','PatrickHand-Regular.ttf','Caveat-Regular.ttf'].map(async name=>{const response=await fetch(new URL('../assets/fonts/'+name,import.meta.url),{signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error('Notebook font could not load.');return response.arrayBuffer();}));
@@ -46,7 +46,7 @@ export async function createNotebookPDF(workbook,onProgress=()=>{},{paper=true}=
    }
    mapPage.drawText('Green: offense · rust: defense · gray: neutral. Detailed notes follow on portrait pages.',{x:M,y:68,size:8,font:regular,color:muted});continue;
   }
-  chapterTitle=chapter.title;newPage();sectionStarts.push({title:chapter.title,page});paragraph(chapter.title,{font:heading,size:29,leading:37});y-=8;paragraph(chapter.derived?'Organized from Google Sheets. Original cells remain in the source chapters.':`Source tab: ${chapter.tab} · ${chapter.records.length} entries`,{font:regular,size:9,color:muted});y-=16;
+  chapterTitle=chapter.title;newPage();sectionStarts.push({title:chapter.title,page});paragraph(chapter.title,{font:heading,size:29,leading:37});y-=8;paragraph(chapter.provenance?chapter.provenance:chapter.derived?'Organized from Google Sheets. Original cells remain in the source chapters.':`Source tab: ${chapter.tab} · ${chapter.records.length} entries`,{font:regular,size:9,color:muted});y-=16;
   if(chapter.introduction)paragraph(chapter.introduction);else if(!chapter.records.length)paragraph('No entries in this category or tab yet.');
   for(const record of chapter.records){
    ensure(70);const start=page;recordStarts.set(record.id,{page:start,top:y+24});paragraph((record.date?record.date+' · ':'')+record.title,{font:heading,size:19,leading:25});y-=5;
@@ -80,7 +80,7 @@ export async function createNotebookPDF(workbook,onProgress=()=>{},{paper=true}=
  for(const [i,target]of toc.entries()){target.drawText(i?'Contents, continued':'Contents',{x:M,y:H-72,size:32,font:heading,color:ink});if(i===0)target.drawText('Tap a chapter to go directly to it.',{x:M,y:H-94,size:10,font:regular,color:muted});}
  for(const item of indexLayout){let x=320,top=item.y;for(const [i,target]of item.targets.entries()){if(i&&i%12===0){x=320;top-=15;}const value=String(pageNumber(target)),width=regular.widthOfTextAtSize(value,9);if(x+width>W-M){x=320;top-=15;}item.page.drawText(value,{x,y:top,size:9,font:regular,color:ink});goto(item.page,[x,top-3,x+width+4,top+11],target);x+=width+7;}}
  cover.drawText('The Dojo',{x:M,y:590,size:52,font:heading,color:ink});cover.drawText('Training notebook',{x:M,y:550,size:20,font:regular,color:ink});
- const coverLines=[model.title,`${model.tabCount} Sheet tabs · ${model.rowCount} original data rows`,`${model.cellCount} populated source cells`, 'Snapshot: '+String(model.fetchedAt||'unknown'),'', 'Your original notes, organized into chapters.', 'Includes a linked table of contents, PDF bookmarks, and index.', 'Use your PDF reader’s search to find words throughout the book.', 'Generated Sheet views may repeat source journal material.'];
+ const coverLines=[model.title,`${model.tabCount} Sheet tabs · ${model.rowCount} original data rows`,`${model.cellCount} populated source cells`,...(model.guideCount?[`${model.guideCount} private course guides`]:[]), 'Snapshot: '+String(model.fetchedAt||'unknown'),'', 'Your original notes, organized into chapters.', 'Includes a linked table of contents, PDF bookmarks, and index.', 'Use your PDF reader’s search to find words throughout the book.', 'Generated Sheet views may repeat source journal material.'];
  if(unsupported)coverLines.push('Symbols outside the embedded font are shown as [U+codes].');
  let cy=490;for(const text of coverLines){for(const lineText of wrap(text,regular,10.5)){if(lineText)cover.drawText(lineText,{x:M,y:cy,size:10.5,font:regular,color:muted});cy-=17;}}
  try{const response=await fetch(new URL('../assets/warrior.png',import.meta.url),{signal:AbortSignal.timeout(5000)});if(response.ok){const image=await pdf.embedPng(await response.arrayBuffer());cover.drawImage(image,{x:W-M-130,y:570,width:110,height:130});}}catch{/* Cover art is optional; training content is never omitted. */}
@@ -93,3 +93,4 @@ export async function createNotebookPDF(workbook,onProgress=()=>{},{paper=true}=
  pdf.setTitle('The Dojo — Training Notebook');pdf.setSubject('Complete Google Sheets snapshot with linked chapters and index');pdf.setCreator('The Dojo private browser exporter');
  onProgress('Finishing searchable PDF…');const bytes=await pdf.save();return {bytes,model,pages:pages.length};
 }
+

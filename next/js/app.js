@@ -1,3 +1,4 @@
+import {parseCourseGuides,mergeCourseGuides,guideBundle} from './course-guides.js?v=23';
 import {Sensei} from './sensei.js?v=22';
 import {validateReferenceNotes} from './course-references.js?v=22';
 import {JournalEditor} from './journal-edit.js?v=18';
@@ -5,7 +6,7 @@ import {PrivateLessons} from './privates.js?v=14';
 import {OrganizationEditor} from './organization-editor.js?v=12';
 import {ORG_TABS} from './organization.js?v=12';
 import {LibraryEditor} from './library-editor.js?v=12';
-import {makeBookModel,notebookHTML} from './book-model.js?v=19';
+import {makeBookModel,notebookHTML} from './book-model.js?v=23';
 import {StrategyMap} from './strategy-map.js?v=12';
 import {renderPrep,renderSearch,renderResources,PrepPlayback,sourceLink} from './workspace-tools.js?v=22';
 import {read,write,remove,writeBatch} from './store.js';
@@ -14,7 +15,7 @@ import {FIELDS,POSITIONS,MAP_NODES,newDraft,localToday,techniqueName,positionKey
 import {renderJournal,renderKnowledge,techniqueKey} from './views.js?v=18';
 const $=id=>document.getElementById(id);
 let draft=newDraft(),queue=[],busy=false,storageFailed=false,limit=12,view='journal',selected='',category='',needsTechniqueRepair=false;
-let aiBriefing=null;
+let aiBriefing=null,courseGuides=[];
 let workbook=null;let snapshots={},cached=true,logs=[],draftWrites=Promise.resolve(),legacyAudioUrl;
 function status(message,error=false){
  for(const id of ['status','review-status','workspace-status']){ $(id).hidden=false;$(id).textContent=message;$(id).classList.toggle('error',error); }
@@ -182,16 +183,25 @@ async function buildNotebook(format){
   if(Object.values(ORG_TABS).some(tab=>!latest.sheets[tab])){bookMessage('Saving organization to Sheets for the notebook…');await initializeOrganization();latest=await loadCompleteWorkbook();}
   const stamp=localToday();const pendingNotice=syncWarning?' Pending journal entries remain on this device; this export contains only the current Sheet data.':'';
   if(format==='pdf'){
-   const {createNotebookPDF}=await import('./book-pdf.js?v=14');
-   const result=await createNotebookPDF(latest,message=>bookMessage(message),{paper:!$('book-white-paper').checked});
+   const {createNotebookPDF}=await import('./book-pdf.js?v=23');
+   const result=await createNotebookPDF(latest,message=>bookMessage(message),{paper:!$('book-white-paper').checked,guides:$('book-guides').checked?courseGuides:[]});
    bookDownload(result.bytes,'application/pdf',`The-Dojo-Notebook-${stamp}.pdf`,'Download PDF notebook');
-   bookMessage(`Ready: ${result.pages} pages, ${result.model.tabCount} Sheet tabs, ${result.model.rowCount} original data rows. Snapshot ${latest.fetchedAt}. Use your PDF reader to search or print.${pendingNotice}`);
+   bookMessage(`Ready: ${result.pages} pages, ${result.model.tabCount} Sheet tabs, ${result.model.rowCount} original data rows and ${result.model.guideCount} course guides. Snapshot ${latest.fetchedAt}. Use your PDF reader to search or print.${pendingNotice}`);
   }else{
-   const model=makeBookModel(latest);const {notebookFonts}=await import('./book-fonts.js?v=7');const fontCSS=await notebookFonts();bookDownload(notebookHTML(model,{fontCSS,paper:!$('book-white-paper').checked}),'text/html;charset=utf-8',`The-Dojo-Notebook-${stamp}.html`,'Download searchable HTML notebook');const open=node('a','Open HTML notebook');open.href=bookURLs.at(-1);open.target='_blank';open.rel='noopener';open.className='download-link';$('book-downloads').append(open);
-   bookMessage(`Ready: ${model.tabCount} Sheet tabs and ${model.rowCount} original data rows, with an index and search. Use Open HTML notebook to turn pages, search, or print.${pendingNotice}`);
+   const model=makeBookModel(latest,{guides:$('book-guides').checked?courseGuides:[]});const {notebookFonts}=await import('./book-fonts.js?v=7');const fontCSS=await notebookFonts();bookDownload(notebookHTML(model,{fontCSS,paper:!$('book-white-paper').checked}),'text/html;charset=utf-8',`The-Dojo-Notebook-${stamp}.html`,'Download searchable HTML notebook');const open=node('a','Open HTML notebook');open.href=bookURLs.at(-1);open.target='_blank';open.rel='noopener';open.className='download-link';$('book-downloads').append(open);
+   bookMessage(`Ready: ${model.tabCount} Sheet tabs and ${model.rowCount} original data rows and ${model.guideCount} course guides, with an index and search. Use Open HTML notebook to turn pages, search, or print.${pendingNotice}`);
   }
  }catch(error){bookMessage(`Notebook export: ${error.message}`,true);}finally{busy=false;controls();}
 }
+function guideStatus(){
+ $('guide-count').textContent=courseGuides.length?courseGuides.length+' course guide(s) on this device. Include them below when building your notebook.':'No course guides added on this device yet.';
+ $('book-guides').disabled=!courseGuides.length;$('guide-backup').disabled=!courseGuides.length;
+}
+$('guide-import').onchange=async event=>{
+ const file=event.target.files?.[0];if(!file)return;
+ try{if(file.size>10000000)throw Error('Choose a guide smaller than 10 MB.');const incoming=parseCourseGuides(await file.text());if(!incoming.length)throw Error('No course guides were found in this file.');const next=mergeCourseGuides(courseGuides,incoming);await writeBatch([['course-guides-previous',courseGuides],['course-guides',next]]);courseGuides=next;guideStatus();$('guide-import-state').textContent=incoming.length+' guide(s) added or updated. Other guides are kept.';}catch(error){$('guide-import-state').textContent=error.message;}finally{event.target.value='';}
+};
+$('guide-backup').onclick=()=>bookDownload(JSON.stringify(guideBundle(courseGuides),null,2),'application/json','The-Dojo-Course-Guides.json','Download course guides backup');
 $('book-build').onclick=()=>buildNotebook('pdf');$('book-html').onclick=()=>buildNotebook('html');
 window.addEventListener('pagehide',()=>{for(const url of bookURLs)URL.revokeObjectURL(url);playback.cancel(false);});
 async function loadWorkspace(){
@@ -288,6 +298,7 @@ try{
  // Preserve unfinished saves made before explicit creation toggles existed.
  for(const entry of queue){if(!Object.hasOwn(entry,'_createTechnique'))entry._createTechnique=!!entry.technique_label;if(!Object.hasOwn(entry,'_createTakedown'))entry._createTakedown=!!entry.takedown_label;}
  workbook=await read('workbook')||null;for(const tab of new Set(['data','techniques','pearls','privates',...Object.values(ORG_TABS),...Object.keys(workbook?.sheets||{})])){const snapshot=await read('mirror-'+tab);if(snapshot)snapshots[tab]={...snapshot,stale:true};}
+ const savedGuides=await read('course-guides');if(savedGuides){try{courseGuides=guideBundle(savedGuides).guides;}catch{$('guide-import-state').textContent='Saved guides could not be read. Add your guide backup again.';}}guideStatus();
  const previousBriefing=await read('sensei-briefing');if(previousBriefing?.answer?.prep?.text&&previousBriefing.generated_at)aiBriefing=previousBriefing;
  const referenceNotes=await read('course-reference-notes');if(referenceNotes){try{snapshots.__course_references={rows:validateReferenceNotes(referenceNotes)};}catch{$('reference-import-state').textContent='The saved reference import could not be read. Import your backup again.';}}
  $('worker-url').value=await read('worker-url')||'https://yhe-dojo-next.livingthesearch1.workers.dev';$('transcript').value=draft.transcript;
